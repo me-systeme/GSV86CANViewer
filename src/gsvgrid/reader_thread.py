@@ -18,7 +18,6 @@ from PyQt5 import QtCore
 
 from gsvgrid.config import (
     DEVICE_CONFIG,
-    GRID_MAP,
     MYBUFFERSIZE,
     SENSORS_BY_NO,
     SENSOR_BY_DEVCH,
@@ -86,6 +85,7 @@ class ReaderThread(QtCore.QThread):
         # ---------------------------------------------------------------------
         self._running = True
         self.active_devices = []  # list[int]: devices that were successfully started
+        self.channels_by_dev = {}  # dev_no -> int number of channels from activate()
 
         # ---------------------------------------------------------------------
         # Update-rate measurement (sliding window of timestamps per device)
@@ -179,7 +179,9 @@ class ReaderThread(QtCore.QThread):
 
             try:
                 # Activate device and obtain number of active channels (chan)
-                chan = self.gsv.activate(dev_no, d["cmd_id"], d["answer_id"])   
+                chan = self.gsv.activate(dev_no, d["cmd_id"], d["answer_id"])  
+                chan = int(chan)
+                self.channels_by_dev[dev_no] = chan 
                 
                 if LOAD_DEFAULT_SETTINGS:
                     # -------------------------------------------------------------
@@ -395,7 +397,7 @@ class ReaderThread(QtCore.QThread):
                             if sensitivity + 1e-9 < char_mvv:
                                 limited_kn = (nominal_kn / char_mvv) * sensitivity
                                 saturation_error = f"WARNING: measuring range limited to {limited_kn:g} kN (sensor {sensor_no})"
-                                dev_info[dev_no] = {"serial": sn, "ok": False, "error": saturation_error}
+                                dev_info[dev_no] = {"serial": sn, "ok": False, "error": saturation_error, "channels": chan}
 
                                 self.statusUpdated.emit(
                                     f"WARN: Dev {dev_no} Ch{ch}: effective sensitivity {sensitivity:g} mV/V < "
@@ -431,7 +433,7 @@ class ReaderThread(QtCore.QThread):
                         self.statusUpdated.emit(f"Dev {dev_no}: setFrequency({freq} Hz) OK")
                     except RuntimeError as e:
                         freq_error = f"FAIL setFrequency({freq} Hz): {e}"
-                        dev_info[dev_no] = {"serial": sn, "ok": False, "error": freq_error}
+                        dev_info[dev_no] = {"serial": sn, "ok": False, "error": freq_error, "channels": chan}
                         self.statusUpdated.emit(
                             f"FAIL: Dev {dev_no} setFrequency({freq} Hz) CMD=0x{d['cmd_id']:03X} ANS=0x{d['answer_id']:03X}: {e}"
                         )
@@ -443,7 +445,7 @@ class ReaderThread(QtCore.QThread):
                 
                 # If no hard error was recorded, mark as OK
                 if freq_error == None and saturation_error == False:
-                    dev_info[dev_no] = {"serial": sn, "ok": True, "error": None}
+                    dev_info[dev_no] = {"serial": sn, "ok": True, "error": None, "channels": chan}
                     self.statusUpdated.emit(
                         f"OK: Dev {dev_no} CMD=0x{d['cmd_id']:03X} ANS=0x{d['answer_id']:03X} channels={chan}"
                     )
@@ -525,8 +527,11 @@ class ReaderThread(QtCore.QThread):
                 data = self.gsv.read_multiple(dev_no, max_items)
                 if data is None:
                     continue
-
-                latest = extract_latest_channels(data, channels=3)
+                
+                nchan = int(self.channels_by_dev.get(dev_no, 0))
+                if nchan <= 0:
+                    continue
+                latest = extract_latest_channels(data, channels=nchan)
                 if latest is None:
                     continue
 
@@ -540,12 +545,11 @@ class ReaderThread(QtCore.QThread):
             # -------------------------------------------------------------
             out = {}
             if latest_by_dev:
-                for pos, (dev_no, ch_idx) in GRID_MAP.items():
-                    latest = latest_by_dev.get(dev_no)
+                for dev_no, latest in latest_by_dev.items():
                     if latest is None:
                         continue
-                    if 0 <= ch_idx < len(latest):
-                        out[pos] = latest[ch_idx]
+                    for i, v in enumerate(latest, start=1):   # i = 1..nchan
+                        out[f"{dev_no}/{i}"] = v
             
             # -------------------------------------------------------------
             # Compute per-device update rates (Hz) over a sliding window

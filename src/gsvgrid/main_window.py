@@ -1,46 +1,36 @@
 """
 main_window.py
 
-Main application window for the GSV grid UI.
+Main application window for the GSV UI (tree view).
 
 This module contains the MainWindow class which:
-- Builds and scales the grid-based live display.
+- Shows live values grouped by device -> channel in a QTreeWidget.
 - Shows device status and per-device update rates.
-- Allows toggling "mirror view".
 - Provides logging (REC) controls (CSV/XLSX via DataRecorder).
 - Provides a "Zero" button to request zeroing all active devices (executed inside ReaderThread).
-- Runs a startup prompt that optionally starts recording before the reader thread begins, so that the
-  first incoming values are not missed by the logger.
 """
 
 import time
 
 from PyQt5 import QtCore, QtWidgets
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor, QBrush
 
-from gsvgrid.config import (
-    ROW_COLS, 
-    ACTIVE, 
-    TOTAL_COLS, 
-    GRID_MAP,
-    DEVICE_BY_DEVNO, 
+from gsvgrid.config import ( 
     DEVICE_CONFIG, 
     LOG_FILE, 
     LOG_RATE_HZ
 )
-from gsvgrid.utils import mirror_col, clear_layout, make_blue_shades_stronger
-from gsvgrid.grid_cell import GridCell
+from gsvgrid.utils import make_blue_shades_stronger
 from gsvgrid.reader_thread import ReaderThread
 from gsvgrid.recorder import DataRecorder
 
 
 class MainWindow(QtWidgets.QMainWindow):
     """
-    Main Qt window that renders the measurement grid and all controls.
+    Main Qt window that renders a device/channel tree and all controls.
 
     What this class does:
-    - Builds the grid layout (active/inactive cells) and keeps it responsive via apply_scale().
-    - Subscribes to ReaderThread signals to update cell values, device rates, and device meta info.
+    - Subscribes to ReaderThread signals to update values, device rates, and device meta info.
     - Manages the recording UI and DataRecorder.
     - Provides a "Zero" action with confirmation, executed safely inside the ReaderThread.
 
@@ -62,13 +52,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # ---------------------------------------------------------------------
         # Window basics
         # ---------------------------------------------------------------------
-        self.setWindowTitle("GSV Grid (19 Values)")
+        self.setWindowTitle("GSV Measurements")
 
-        # ---------------------------------------------------------------------
-        # View state (mirroring swaps the "diamond" columns)
-        # ---------------------------------------------------------------------
-        self.mirrored = False
-
+        # Base colors used for buttons
+        self.base_blue = "#0F8EBD"
+        self.blue_hover = "#0D7FA9"
+        
         # ---------------------------------------------------------------------
         # Root layout (vertical)
         # ---------------------------------------------------------------------
@@ -77,47 +66,10 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(central)
 
         # ---------------------------------------------------------------------
-        # Mirror control row (label + check-like button)
-        # ---------------------------------------------------------------------
-        row_mirror = QtWidgets.QHBoxLayout()
-        row_mirror.setContentsMargins(0, 0, 0, 0)
-        row_mirror.setSpacing(12)  
-
-        self.lbl_mirror = QtWidgets.QLabel("Mirror view")
-
-        # Base colors used for grid cells and buttons 
-        self.base_blue = "#0F8EBD"  
-        self.blue_hover = "#0D7FA9"
-
-        self.chk_mirror = QtWidgets.QPushButton("✓")
-        self.chk_mirror.setCheckable(True)
-        self.chk_mirror.setCursor(QtCore.Qt.PointingHandCursor)
-        self.chk_mirror.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.chk_mirror.setChecked(self.mirrored)
-
-        # Map QPushButton(bool) click to the same state signature as a checkbox
-        def _mirror_clicked(checked: bool):
-            state = QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked
-            self.on_toggle_mirror(state)
-        
-        self.chk_mirror.clicked.connect(_mirror_clicked)
-
-        row_mirror.addWidget(self.lbl_mirror)
-        row_mirror.addWidget(self.chk_mirror)
-
-        self.mirror_widget = QtWidgets.QWidget()
-        self.mirror_widget.setLayout(row_mirror)
-        self.mirror_widget.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-
-        # ---------------------------------------------------------------------
-        # Dynamic vertical gaps above/below the controls (scaled in apply_scale)
+        # Optional small top gap (kept simple)
         # ---------------------------------------------------------------------
         self.controls_top_gap = QtWidgets.QWidget()
-        self.controls_top_gap.setFixedHeight(0)
-
-        self.controls_bottom_gap = QtWidgets.QWidget()
-        self.controls_bottom_gap.setFixedHeight(0)
-
+        self.controls_top_gap.setFixedHeight(8)
         layout.addWidget(self.controls_top_gap)
 
         # ---------------------------------------------------------------------
@@ -127,14 +79,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_record = None
 
         if LOG_FILE:
-            # Stable column order for log files: ACTIVE keys sorted by row/col (e.g. "1/2", "2/2", ...)
-            def key_sort(k: str):
-                r, c = k.split("/")
-                return (int(r), int(c))
-            
-            log_keys = sorted(list(ACTIVE), key=key_sort)
-            self.recorder = DataRecorder(LOG_FILE, log_keys)
-
             # Logging rate limiting:
             # - LOG_RATE_HZ defines how many rows per second are written
             # - Default behavior is 1 Hz
@@ -146,27 +90,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.btn_record = QtWidgets.QPushButton()
             self.btn_record.setCheckable(True)
             self.btn_record.clicked.connect(self.on_toggle_recording)
+            self.btn_record.setEnabled(False)  # will be activated after deviceInfoUpdated
 
             self.btn_record.setSizePolicy(
                 QtWidgets.QSizePolicy.Expanding,
                 QtWidgets.QSizePolicy.Fixed
             )
 
-            # Shared row: mirror on the left, REC centered, right dummy spacer to keep centering stable
+            # Shared row: REC centered, right dummy spacer to keep centering stable
             row_controls = QtWidgets.QHBoxLayout()
-            row_controls.setContentsMargins(0, 0, 0, 0)
-            row_controls.setSpacing(24)
-
-            row_controls.addWidget(self.mirror_widget)
-
             row_controls.addStretch(1)
             row_controls.addWidget(self.btn_record, alignment=QtCore.Qt.AlignCenter)
             row_controls.addStretch(1)
-
-            self.mirror_spacer = QtWidgets.QWidget()
-            self.mirror_spacer.setFixedWidth(0)  # updated in apply_scale()
-            row_controls.addWidget(self.mirror_spacer)
-
             layout.addLayout(row_controls)
 
             # Record button styles
@@ -213,66 +148,49 @@ class MainWindow(QtWidgets.QMainWindow):
             self._apply_record_button_style(is_recording=False)
 
         else:
-            # Without LOG_FILE: keep mirror widget left-aligned in its own row
+            # Without LOG_FILE
             row_controls = QtWidgets.QHBoxLayout()
-            row_controls.setContentsMargins(0, 0, 0, 0)
-            row_controls.setSpacing(24)
-
-            row_controls.addWidget(self.mirror_widget)
             row_controls.addStretch(1)
-
+            row_controls.addWidget(self.btn_record, alignment=QtCore.Qt.AlignCenter)
+            row_controls.addStretch(1)
             layout.addLayout(row_controls)
 
-        layout.addWidget(self.controls_bottom_gap)
 
         # ---------------------------------------------------------------------
-        # Grid layout (diamond layout of 19 active cells + inactive placeholders)
+        # Tree
         # ---------------------------------------------------------------------
-        self.grid = QtWidgets.QGridLayout()
-        self.grid.setHorizontalSpacing(10)
-        self.grid.setVerticalSpacing(10)
-
-        self.grid_widget = QtWidgets.QWidget()
-        self.grid_widget.setLayout(self.grid)
-        self.grid_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.tree = QtWidgets.QTreeWidget()
+        self.tree.setColumnCount(5)
+        self.tree.setHeaderLabels(["Device", "CAN", "Serial", "Channel", "Value"])
+        self.tree.setRootIsDecorated(True)
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(True)
+        layout.addWidget(self.tree, stretch=1)
 
         # ---------------------------------------------------------------------
-        # Overlay container: the grid + "Zero" button floating bottom-right
+        # Zero
         # ---------------------------------------------------------------------
-        self.grid_container = QtWidgets.QWidget()
-        overlay = QtWidgets.QGridLayout(self.grid_container)
-        overlay.setContentsMargins(0, 0, 0, 0)
-        overlay.setSpacing(0)
-
-        overlay.addWidget(self.grid_widget, 0, 0)
-
-        base_blue = getattr(self, "base_blue", "#0F8EBD")
-        hover = getattr(self, "blue_hover", "#0D7FA9")
+        row_bottom = QtWidgets.QHBoxLayout()
+        row_bottom.addStretch(1)
 
         self.btn_zero = QtWidgets.QPushButton("Zero")
         self.btn_zero.setStyleSheet(f"""
             QPushButton {{
-                background: {base_blue};
+                background: {self.base_blue};
                 color: white;
                 border: none;
                 border-radius: 6px;
                 font-weight: 700;
                 padding: 8px 14px;
             }}
-            QPushButton:hover {{
-                background: {hover};
-            }}
-            QPushButton:pressed {{
-                background: {hover};
-            }}
+            QPushButton:hover {{ background: {self.blue_hover}; }}
+            QPushButton:pressed {{ background: {self.blue_hover}; }}
         """)
         self.btn_zero.setCursor(QtCore.Qt.PointingHandCursor)
         self.btn_zero.setFocusPolicy(QtCore.Qt.NoFocus)
         self.btn_zero.clicked.connect(self.on_zero_clicked)
-
-        overlay.addWidget(self.btn_zero, 0, 0, alignment=QtCore.Qt.AlignRight | QtCore.Qt.AlignBottom)
-
-        layout.addWidget(self.grid_container, stretch=1, alignment=QtCore.Qt.AlignCenter)  
+        row_bottom.addWidget(self.btn_zero, alignment=QtCore.Qt.AlignRight)
+        layout.addLayout(row_bottom)
 
         # ---------------------------------------------------------------------
         # Bottom separator + status area
@@ -280,7 +198,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sep_bottom = QtWidgets.QFrame()
         self.sep_bottom.setFrameShape(QtWidgets.QFrame.HLine)
         self.sep_bottom.setFrameShadow(QtWidgets.QFrame.Plain)
-        self.sep_bottom.setStyleSheet(f"color: {base_blue}; background-color: {base_blue};")
+        self.sep_bottom.setStyleSheet(f"color: {self.base_blue}; background-color: {self.base_blue};")
         self.sep_bottom.setFixedHeight(2)  
         layout.addWidget(self.sep_bottom)
 
@@ -296,15 +214,14 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.dev_status)
 
         # ---------------------------------------------------------------------
-        # Runtime caches for grid cells and device visual identity
+        # Runtime caches 
         # ---------------------------------------------------------------------
-        self.value_cells = {}       # ACTIVE: key -> GridCell
+        self.dev_items = {}    # dev_no -> QTreeWidgetItem
+        self.chan_items = {}   # (dev_no, ch) -> QTreeWidgetItem
         self.sn_colors = {}         # serial(int) -> QColor
         self.last_dev_info = None   # cached meta info for repaint after rebuild
 
-        # Build the initial grid and apply dynamic scaling once
-        self.build_grid()
-        self.apply_scale()
+        self._build_devices_only()
 
         # ---------------------------------------------------------------------
         # Reader thread wiring (signals only; thread starts after startup prompt)
@@ -313,76 +230,55 @@ class MainWindow(QtWidgets.QMainWindow):
         self.thread.valuesUpdated.connect(self.on_values)
         self.thread.statusUpdated.connect(self.on_status)
         self.thread.deviceInfoUpdated.connect(self.on_device_info)
-
-        # ---------------------------------------------------------------------
-        # Startup flow:
-        # - show the window first
-        # - then (optionally) start recording
-        # - then start the reader thread so the very first values can be logged
-        # ---------------------------------------------------------------------
-        QtCore.QTimer.singleShot(0, self._startup_prompt_recording_then_start_thread)
-
-    def _startup_prompt_recording_then_start_thread(self):
-        """
-        Run once right after the window has been shown.
-
-        What happens here:
-        - If logging is configured, ask the user whether recording should start immediately.
-        - If the user chooses "Yes", start logging as if the REC button was clicked.
-        - Only after that, start the ReaderThread. This ensures that the first incoming
-          measurement values can be written to the log file.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        # Ensure this can only run once
-        if getattr(self, "_startup_done", False):
-            return
-        self._startup_done = True
-
-        # If logging is not configured, start acquisition immediately
-        if not self.recorder or not self.btn_record:
-            self.thread.start()
-            return
-
-        # Confirmation dialog
-        msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Question)
-        msg.setWindowTitle("Start recording?")
-        msg.setText(
-            "Do you want to start REC recording immediately?\n\n"
-            "If you choose 'Yes', the first incoming measurement values will be written to the log file."
-        )
-        btn_yes = msg.addButton("Yes, start REC", QtWidgets.QMessageBox.AcceptRole)
-        btn_no  = msg.addButton("No", QtWidgets.QMessageBox.RejectRole)
-        msg.setDefaultButton(btn_yes)
-
-        msg.exec_()
-        clicked = msg.clickedButton()
-
-        if clicked == btn_yes:
-            # Mirror a user click: set button checked without firing signals, then call the handler
-            self.btn_record.blockSignals(True)
-            self.btn_record.setChecked(True)
-            self.btn_record.blockSignals(False)
-
-            # Use existing logic (includes overwrite/name suggestion dialog)
-            self.on_toggle_recording(True)
-
-            # If the user cancels or an error occurs, on_toggle_recording() resets the button.
-        else:
-            # Explicitly ensure OFF state (red button)
-            self._reset_record_button()
-
-        # Start acquisition after recording decision
         self.thread.start()
+
+        self.apply_scale()
     
+    # -------------------------------------------------------------------------
+    # Build tree structure
+    # -------------------------------------------------------------------------
+    def _build_devices_only(self):
+        """Create top-level device rows (no channels yet)."""
+        self.tree.clear()
+        self.dev_items.clear()
+        self.chan_items.clear()
+
+        for d in DEVICE_CONFIG:
+            dev_no = d["dev_no"]
+            ans = d["answer_id"]
+            dev_item = QtWidgets.QTreeWidgetItem([f"DEV {dev_no}", f"0x{ans:03X}", "SN ?", "", ""])
+            self.tree.addTopLevelItem(dev_item)
+            self.dev_items[dev_no] = dev_item
+
+        self.tree.expandAll()
+
+        hdr = self.tree.header()
+        hdr.setStretchLastSection(False)
+        hdr.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(4, QtWidgets.QHeaderView.Stretch)
+
+    def _ensure_channels(self, dev_no: int, nchan: int):
+        # ---------------------------------------------------------------------
+        # Ensure channel child items exist for dev_no: CH 1..nchan.
+        # ---------------------------------------------------------------------
+        dev_item = self.dev_items.get(dev_no)
+        if dev_item is None:
+            return
+
+        # Create missing channel items
+        for ch in range(1, int(nchan) + 1):
+            key = (dev_no, ch)
+            if key in self.chan_items:
+                continue
+            ch_item = QtWidgets.QTreeWidgetItem(["", "", "", f"CH {ch}", "-"])
+            dev_item.addChild(ch_item)
+            self.chan_items[key] = ch_item
+
+        dev_item.setExpanded(True)
+
     def on_status(self, msg: str):
         # ---------------------------------------------------------------------
         # Status line updates and basic severity coloring
@@ -396,12 +292,30 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_values(self, values: dict, updates_by_dev: dict):
         # ---------------------------------------------------------------------
-        # Grid cell updates (latest values)
+        # Value updates 
+        # Values keys are expected to be "dev_no/ch" (1-based channel).
+        # Example: {"2/1": 12.3, "2/2": 12.4, "5/3": ...})
         # ---------------------------------------------------------------------
-        for key, val in values.items():
-            cell = self.value_cells.get(key)
-            if cell is not None:
-                cell.set_value(val)
+        for k, val in values.items():
+            try:
+                dev_s, ch_s = k.split("/")
+                dev_no = int(dev_s)
+                ch = int(ch_s)
+            except Exception:
+                continue
+
+            item = self.chan_items.get((dev_no, ch))
+            if item is None:
+                # If values arrive before deviceInfoUpdated, create on-the-fly (safe)
+                self._ensure_channels(dev_no, ch)
+                item = self.chan_items.get((dev_no, ch))
+                if item is None:
+                    continue
+            
+            try:
+                item.setText(4, f"{val:.2f} kN")
+            except Exception:
+                item.setText(4, "NaN")
 
         # ---------------------------------------------------------------------
         # Per-device update rate line (Hz)
@@ -425,10 +339,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_device_info(self, dev_info: dict):
         # ---------------------------------------------------------------------
-        # Cache latest device meta info and apply colors/labels in the grid
+        # Cache latest device meta info and apply colors/labels 
         # ---------------------------------------------------------------------
-        self.last_dev_info = dev_info  # cache
+        self.last_dev_info = dev_info
+
+        # Build channels once we know them
+        for dev_no, info in dev_info.items():
+            nchan = int(info.get("channels", 0) or 0)
+            if nchan > 0:
+                self._ensure_channels(dev_no, nchan)
+
+        # Init recorder now that we know channel counts
+        if LOG_FILE and self.recorder is None:
+            self._init_recorder_from_devinfo(dev_info)
+            if self.btn_record:
+                self.btn_record.setEnabled(True)
+
         self.apply_device_info(dev_info)
+    
+    # -------------------------------------------------------------------------
+    # Recorder init (no ACTIVE, no GRID_MAP)
+    # -------------------------------------------------------------------------
+    def _init_recorder_from_devinfo(self, dev_info: dict):
+        # Stable key order: by dev_no then ch
+        keys = []
+        for d in DEVICE_CONFIG:
+            dev_no = d["dev_no"]
+            nchan = int(dev_info.get(dev_no, {}).get("channels", 0) or 0)
+            for ch in range(1, nchan + 1):
+                keys.append(f"{dev_no}/{ch}")
+        self.recorder = DataRecorder(LOG_FILE, keys)
+
+        self._log_last_t = 0.0
 
     def on_zero_clicked(self):
         # ---------------------------------------------------------------------
@@ -445,8 +387,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         # Optimistic UI update (instant feedback)
-        for cell in self.value_cells.values():
-            cell.set_value(0.0)
+        for item in self.chan_items.values():
+            item.setText(4, "0.00 kN")
 
         # Thread request (ensures DLL access happens in the reader thread)
         try:
@@ -551,66 +493,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.btn_record.setStyleSheet(self.btn_record_style_off)
             self.btn_record.setText(self.record_text_off)
 
-    def build_grid(self):
-        """
-        (Re)build the grid layout.
-
-        What happens here:
-        - Clears the existing grid layout.
-        - Creates GridCell widgets for all positions defined in ROW_COLS.
-        - Assigns CAN IDs for active cells from GRID_MAP / DEVICE_CONFIG.
-        - Re-applies device serial/color information if available.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        # Clear current layout (used when toggling mirror mode)
-        clear_layout(self.grid)
-        self.value_cells = {}  
-
-        # Create cells row by row (diamond layout)
-        for r in range(1, 10):
-            cols = ROW_COLS[r]
-            for c, x in enumerate(cols, start=1):
-                key = f"{r}/{c}"
-                is_active = key in ACTIVE
-
-                cell = GridCell(key, is_active)
-
-                # Apply mirror transformation (only affects visual column index)
-                col = mirror_col(x) if self.mirrored else x
-
-                self.grid.addWidget(cell, r - 1, col)
-
-                if is_active:
-                    if key in GRID_MAP:
-                        dev_no, _ch = GRID_MAP[key]
-                        d = DEVICE_BY_DEVNO.get(dev_no)
-                        if d:
-                            cell.set_can(d["answer_id"])
-                    self.value_cells[key] = cell
-
-        # Re-apply cached device info after rebuild (colors/SN labels)
-        if self.last_dev_info is not None:
-            self.apply_device_info(self.last_dev_info)
-            
-        # Make all columns expand evenly
-        for col in range(TOTAL_COLS):
-            self.grid.setColumnStretch(col, 1)
-
-    def on_toggle_mirror(self, state: int):
-        # ---------------------------------------------------------------------
-        # Toggle mirror mode and rebuild the grid
-        # ---------------------------------------------------------------------
-        self.mirrored = (state == QtCore.Qt.Checked)
-        self.build_grid()
-        self.apply_scale()
 
     def apply_device_info(self, dev_info: dict):
         """
@@ -654,25 +536,48 @@ class MainWindow(QtWidgets.QMainWindow):
             for sn, col in zip(missing, shades):
                 self.sn_colors[sn] = col
 
-        # Update all cells that are mapped to devices
-        for pos, (dev_no, _ch) in GRID_MAP.items():
-            cell = self.value_cells.get(pos)
-            if cell is None:
-                continue
-
+        # Update all values that are mapped to devices
+        for dev_no, dev_item in self.dev_items.items():
             info = dev_info.get(dev_no, {})
             sn = info.get("serial", None)
             ok = info.get("ok", False)
 
-            cell.set_sn(sn)
-            if ok and sn is not None:
-                cell.set_color(self.sn_colors.get(sn))  # per-serial blue shade
-            else:
-                cell.set_color(None)  # neutral
+            dev_item.setText(2, "SN ?" if sn is None else f"SN {sn}")
 
-            # If the device is not ok, highlight cell as error
-            if not ok:
-                cell.set_error(True)
+            if ok:
+                qcol = self.sn_colors.get(sn) if sn is not None else None
+                self._set_item_row_color(dev_item, qcol, is_error=False)
+                for i in range(dev_item.childCount()):
+                    self._set_item_row_color(dev_item.child(i), qcol, is_error=False)
+            else:
+                self._set_item_row_color(dev_item, None, is_error=True)
+                for i in range(dev_item.childCount()):
+                    self._set_item_row_color(dev_item.child(i), None, is_error=True)
+    
+    def _set_item_row_color(self, item: QtWidgets.QTreeWidgetItem, color: QColor | None, is_error: bool):
+        cols = self.tree.columnCount()
+
+        if is_error:
+            bg = QBrush(QColor("#FDECEC"))
+            fg = QBrush(QColor("#8A1F1F"))
+            for c in range(cols):
+                item.setBackground(c, bg)
+                item.setForeground(c, fg)
+            return
+
+        if color is None:
+            for c in range(cols):
+                item.setBackground(c, QBrush())
+                item.setForeground(c, QBrush())
+            return
+
+        bg = QBrush(color)
+        r, g, b, _ = color.getRgb()
+        lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        fg = QBrush(QColor("#111" if lum > 150 else "#FFF"))
+        for c in range(cols):
+            item.setBackground(c, bg)
+            item.setForeground(c, fg)
 
     def resizeEvent(self, event):
         # ---------------------------------------------------------------------
@@ -682,168 +587,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.apply_scale()
 
     def apply_scale(self):
-        """
-        Compute responsive sizes (cells, fonts, spacings) based on current window size.
+        w = max(400, self.centralWidget().width())
+        base = max(9, min(13, int(w / 85)))
 
-        What happens here:
-        - Computes a target cell width that fits the full diamond into the available area.
-        - Derives spacing and font sizes from cell width.
-        - Applies those sizes to:
-          - spacer gaps
-          - mirror button (size/font/style)
-          - status labels (font sizes)
-          - all GridCells (fixed size + label fonts)
-          - record button (size/font)
-          - zero button (size/font)
+        self.tree.setFont(QFont(self.tree.font().family(), base))
+        self.status.setFont(QFont(self.status.font().family(), max(9, base)))
+        self.dev_status.setFont(QFont(self.dev_status.font().family(), max(9, base - 1)))
 
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
-        """
-
-        # Available area inside the central widget
-        w = self.centralWidget().width()
-        h = self.centralWidget().height()
-
-        top_space = self.chk_mirror.sizeHint().height() + 30  
-        bottom_space = self.status.sizeHint().height() + self.dev_status.sizeHint().height() + 20
-
-        # Include separator height in the bottom estimate
-        if hasattr(self, "sep_bottom") and self.sep_bottom:
-            bottom_space += self.sep_bottom.sizeHint().height()
-
-        avail_w = max(200, w - 40)                 
-        avail_h = max(200, h - top_space - bottom_space - 20)  
-
-        # Geometry approximation of the full diamond (columns + spacings)
-        denom_w = (TOTAL_COLS + 0.10 * (TOTAL_COLS - 1))
-        denom_h = (9 * 1.10 + 8 * 0.10)
-
-        cell_w_by_w = int(avail_w / denom_w)
-        cell_w_by_h = int(avail_h / denom_h)
-        cell_w = min(cell_w_by_w, cell_w_by_h)
-
-        # Clamp cell size
-        cell_w = max(70, min(cell_w, 140))
-
-        # Dynamic gaps around top controls
-        gap = max(6, min(24, int(cell_w * 0.15)))  
-        self.controls_top_gap.setFixedHeight(gap)
-        self.controls_bottom_gap.setFixedHeight(int(gap * 0.6))
-
-        # Mirror toggle scaling
-        if hasattr(self, "chk_mirror") and self.chk_mirror:
-            ind = max(18, min(36, int(cell_w * 0.28)))
-            radius = max(4, int(ind * 0.22))
-            blue = getattr(self, "base_blue", "#0F8EBD")
-            hover = getattr(self, "blue_hover", "#0D7FA9")
-
-            self.chk_mirror.setFixedSize(ind, ind)
-
-            f_tick = max(10, min(20, int(ind * 0.65)))
-            self.chk_mirror.setFont(QFont(self.chk_mirror.font().family(), f_tick, QFont.Bold))
-
-            self.chk_mirror.setStyleSheet(
-                f"""
-                QPushButton {{
-                    border-radius: {radius}px;
-                    border: 2px solid {blue};
-                    background: transparent;
-                    color: transparent;  
-                    padding: 0px;
-                }}
-                QPushButton:hover {{
-                    border: 2px solid {hover};
-                }}
-                QPushButton:checked {{
-                    background: {blue};
-                    border: 2px solid {blue};
-                    color: white;         
-                }}
-                QPushButton:checked:hover {{
-                    background: {hover};
-                    border: 2px solid {hover};
-                }}
-                """
-            )
-        
-        if hasattr(self, "lbl_mirror") and self.lbl_mirror:
-            f_mirror = max(10, min(18, int(cell_w * 0.18)))
-            self.lbl_mirror.setFont(QFont(self.lbl_mirror.font().family(), f_mirror))
-
-        # Central layout margins/spacing
-        m = max(12, int(cell_w * 0.15))
-        self.centralWidget().layout().setContentsMargins(m, m, m, m)
-        self.centralWidget().layout().setSpacing(max(8, int(cell_w * 0.10)))
-
-        # Grid spacing + cell heights
-        spacing = max(6, int(cell_w * 0.10))
-        self.grid.setHorizontalSpacing(spacing)
-        self.grid.setVerticalSpacing(spacing)
-
-        cell_h_active = int(cell_w * 1.05)  
-        cell_h_inactive = int(cell_w * 0.45)
-
-        # Grid cell fonts
-        f_key = max(6,  min(14, int(cell_w * 0.095)))
-        f_sn  = max(5,  min(12, int(cell_w * 0.075)))
-        f_can = max(5,  min(12, int(cell_w * 0.075)))
-        f_val = max(6, min(18, int(cell_w * 0.080)))
-
-        # Status fonts
-        f_status = max(9, min(13, int(cell_w * 0.10)))  
-        f_devices= max(9, min(12, int(cell_w * 0.075)))  
-
-        self.status.setFont(QFont(self.status.font().family(), f_status))
-        self.dev_status.setFont(QFont(self.dev_status.font().family(), f_devices))
-        
-        # Keep REC button perfectly centered by matching left widget width on the right
-        if hasattr(self, "mirror_widget") and hasattr(self, "mirror_spacer"):
-            self.mirror_spacer.setFixedWidth(self.mirror_widget.sizeHint().width())
-
-        # Apply scaling to each cell
-        for i in range(self.grid.count()):
-            item = self.grid.itemAt(i)
-            cell = item.widget()
-            if cell is None or not isinstance(cell, GridCell):
-                continue
-
-            if cell.active:
-                cell.setMinimumSize(cell_w, 1)
-                cell.setMaximumSize(cell_w, cell_h_active)
-                cell.lbl_key.setFont(QFont(cell.lbl_key.font().family(), f_key, QFont.DemiBold))
-                cell.lbl_sn.setFont(QFont(cell.lbl_sn.font().family(), f_sn))
-                cell.lbl_can.setFont(QFont(cell.lbl_can.font().family(), f_can))
-                cell.lbl_val.setFont(QFont(cell.lbl_val.font().family(), f_val))
-            else:
-                cell.setFixedSize(cell_w, cell_h_inactive)
-                cell.lbl_key.setFont(QFont(cell.lbl_key.font().family(), f_key))
-        
-        # Record button scaling
         if self.btn_record:
-            btn_w = int(cell_w * 4.5) 
-            btn_h = int(cell_w * 0.9)
+            self.btn_record.setFont(QFont(self.btn_record.font().family(), max(10, base), QFont.Bold))
+            self.btn_record.setMinimumHeight(max(34, base * 3))
 
-            self.btn_record.setMinimumWidth(btn_w)
-            self.btn_record.setMinimumHeight(btn_h)
-
-            f_btn = max(10, min(16, int(cell_w * 0.18)))
-            self.btn_record.setFont(QFont(self.btn_record.font().family(), f_btn, QFont.Bold))
-        
-        # Zero button scaling
-        if hasattr(self, "btn_zero") and self.btn_zero:
-            f_zero = max(9, min(14, int(cell_w * 0.10)))
-            self.btn_zero.setFont(QFont(self.btn_zero.font().family(), f_zero, QFont.Bold))
-
-            btn_h = max(28, int(cell_w * 0.55))
-            self.btn_zero.setMinimumHeight(btn_h)
-
-            btn_w = max(110, int(cell_w * 2.4))
-            self.btn_zero.setMinimumWidth(btn_w)
+        self.btn_zero.setFont(QFont(self.btn_zero.font().family(), max(10, base), QFont.Bold))
+        self.btn_zero.setMinimumHeight(max(32, base * 3))
+        self.btn_zero.setMinimumWidth(max(110, base * 8))
 
     def closeEvent(self, event):
         # ---------------------------------------------------------------------

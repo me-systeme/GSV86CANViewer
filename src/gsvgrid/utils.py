@@ -5,7 +5,6 @@ Small helper functions used across the GUI and acquisition code.
 
 This module contains:
 - Layout helpers (clear_layout)
-- Grid geometry helpers (mirror_col)
 - Color helpers (make_blue_shades_stronger, best_text_color)
 - Acquisition helpers (extract_latest_channels)
 
@@ -16,31 +15,6 @@ from different modules without creating circular dependencies.
 from PyQt5 import QtWidgets
 from PyQt5.QtGui import QColor
 
-from gsvgrid.config import TOTAL_COLS 
-
-
-# ---------------------------------------------------------------------------
-# Grid geometry helpers
-# ---------------------------------------------------------------------------
-def mirror_col(x: int) -> int:
-    """
-    Mirror a grid column index around the vertical center line.
-
-    What happens:
-    - The grid columns are indexed from 0..TOTAL_COLS-1.
-    - Mirroring swaps left and right positions, keeping the center axis fixed.
-
-    Parameters
-    ----------
-    x : int
-        Original column index (0-based).
-
-    Returns
-    -------
-    int
-        Mirrored column index (0-based).
-    """
-    return (TOTAL_COLS - 1) - x
 
 # ---------------------------------------------------------------------------
 # Qt layout helpers

@@ -40,7 +40,7 @@ logging:
   # Example:
   # - 1.0  => 1 row per second
   # - 10.0 => 10 rows per second
-  rate_hz: 1.0
+  rate_hz: 10.0
 
 # -----------------------------------------------------------------------------
 # Grid layout configuration
@@ -131,37 +131,33 @@ devices:
   # Adjusts sensitivity if needed
   # Sensitivity of the devices should be larger than char_value of the sensors 
   # If you get a warning like "measuring range limited" then please set to true
-  auto_sensitivity_adjustment: false   
+  auto_sensitivity_adjustment: true   
 
   # Per-device CAN configuration
   config:
     - dev_no: 1
-      cmd_id: "0x0C8"
-      answer_id: "0x0C9"
+      cmd_id: "0x100"
+      answer_id: "0x101"
       frequency: # optional per-device override if global "frequency" is not set
     - dev_no: 2
-      cmd_id: "0x0CB"
-      answer_id: "0x0CC"
+      cmd_id: "0x0FC"
+      answer_id: "0x0FD"
       frequency:
     - dev_no: 3
-      cmd_id: "0x0CE"
-      answer_id: "0x0CF"
+      cmd_id: "0x0FE"
+      answer_id: "0x0FF"
       frequency:
     - dev_no: 4
-      cmd_id: "0x0D1"
-      answer_id: "0x0D2"
+      cmd_id: "0x0FA"
+      answer_id: "0x0FB"
       frequency:
     - dev_no: 5
-      cmd_id: "0x0D4"
-      answer_id: "0x0D5"
+      cmd_id: "0x0F8"
+      answer_id: "0x0F9"
       frequency:
     - dev_no: 6
-      cmd_id: "0x0D7"
-      answer_id: "0x0D8"
-      frequency:
-    - dev_no: 7
-      cmd_id: "0x0DA"
-      answer_id: "0x0DB"
+      cmd_id: "0x0F6"
+      answer_id: "0x0F7"
       frequency:
 
 # -----------------------------------------------------------------------------
