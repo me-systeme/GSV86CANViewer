@@ -38,7 +38,7 @@ logging:
   # Example:
   # - 1.0  => 1 row per second
   # - 10.0 => 10 rows per second
-  rate_hz: 10.0
+  rate_hz: 1.0
 
 # -----------------------------------------------------------------------------
 # Device configuration
@@ -62,7 +62,7 @@ devices:
   # Adjusts sensitivity if needed
   # Sensitivity of the devices should be larger than char_value of the sensors 
   # If you get a warning like "measuring range limited" then please set to true
-  auto_sensitivity_adjustment: true   
+  auto_sensitivity_adjustment: false   
 
   # Per-device CAN configuration
   config:
