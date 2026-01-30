@@ -99,75 +99,75 @@ sensors:
   # char_value:   sensor characteristic (mV/V) at nominal load
   - sensor_no: 1
     nominal_load: "250 kN"
-    serial_number: 25404411
+    serial_number: 
     char_value: "3,13987 mV/V"
   - sensor_no: 2
     nominal_load: "250 kN"
-    serial_number: 25404425
+    serial_number: 
     char_value: "3,15963 mV/V"
   - sensor_no: 3
     nominal_load: "250 kN"
-    serial_number: 25404420
+    serial_number: 
     char_value: "3,15633 mV/V"
   - sensor_no: 4
     nominal_load: "250 kN"
-    serial_number: 25404409
+    serial_number: 
     char_value: "3,1696 mV/V"
   - sensor_no: 5
     nominal_load: "250 kN"
-    serial_number: 25404416
+    serial_number: 
     char_value: "3,14299 mV/V"
   - sensor_no: 6
     nominal_load: "250 kN"
-    serial_number: 25404405
+    serial_number: 
     char_value: "3,1650 mV/V"
   - sensor_no: 7
     nominal_load: "250 kN"
-    serial_number: 25404389
+    serial_number: 
     char_value: "3,1585 mV/V"
   - sensor_no: 8
     nominal_load: "250 kN"
-    serial_number: 25404386
+    serial_number: 
     char_value: "3,1647 mV/V"
   - sensor_no: 9
     nominal_load: "250 kN"
-    serial_number: 25404401
+    serial_number: 
     char_value: "3,1685 mV/V"
   - sensor_no: 10
     nominal_load: "250 kN"
-    serial_number: 25404407
+    serial_number: 
     char_value: "3,1683 mV/V"
   - sensor_no: 11
     nominal_load: "250 kN"
-    serial_number: 25404388
+    serial_number: 
     char_value: "3,1628 mV/V"
   - sensor_no: 12
     nominal_load: "250 kN"
-    serial_number: 25404397
+    serial_number: 
     char_value: "3,15524 mV/V"
   - sensor_no: 13
     nominal_load: "250 kN"
-    serial_number: 25404398
+    serial_number: 
     char_value: "3,1770 mV/V"
   - sensor_no: 14
     nominal_load: "250 kN"
-    serial_number: 25404403
+    serial_number: 
     char_value: "3,14291 mV/V"
   - sensor_no: 15
     nominal_load: "250 kN"
-    serial_number: 25404421
+    serial_number: 
     char_value: "3,15143 mV/V"
   - sensor_no: 16
     nominal_load: "250 kN"
-    serial_number: 25404399
+    serial_number: 
     char_value: "3,14405 mV/V"
   - sensor_no: 17
     nominal_load: "250 kN"
-    serial_number: 25404410
+    serial_number: 
     char_value: "3,1716 mV/V"
   - sensor_no: 18
     nominal_load: "250 kN"
-    serial_number: 25404395
+    serial_number: 
     char_value: "3,1723 mV/V"
   
   
