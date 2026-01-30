@@ -169,10 +169,6 @@ sensors:
     nominal_load: "250 kN"
     serial_number: 25404395
     char_value: "3,1723 mV/V"
-  - sensor_no: 19
-    nominal_load: "250 kN"
-    serial_number: 25404400
-    char_value: "3,1678 mV/V"
   
   
 # -----------------------------------------------------------------------------
@@ -215,5 +211,3 @@ sensor_mapping:
     channel: [6, 1]
   - sensor_no: 18
     channel: [6, 2]
-  - sensor_no: 19
-    channel: [7, 0]
