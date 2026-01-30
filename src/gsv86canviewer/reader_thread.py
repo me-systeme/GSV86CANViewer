@@ -16,7 +16,7 @@ from collections import deque
 
 from PyQt5 import QtCore
 
-from gsvgrid.config import (
+from gsv86canviewer.config import (
     DEVICE_CONFIG,
     MYBUFFERSIZE,
     SENSORS_BY_NO,
@@ -24,7 +24,7 @@ from gsvgrid.config import (
     LOAD_DEFAULT_SETTINGS,
     AUTO_SENSITIVITY_ADJUSTMENT,
 )
-from gsvgrid.utils import extract_latest_channels
+from gsv86canviewer.utils import extract_latest_channels
 
 
 

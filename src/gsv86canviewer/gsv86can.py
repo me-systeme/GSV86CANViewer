@@ -26,7 +26,7 @@ Important notes:
 import ctypes as ct 
 from pathlib import Path
 
-from gsvgrid.config import MYBUFFERSIZE, CANBAUD, DLL_PATH
+from gsv86canviewer.config import MYBUFFERSIZE, CANBAUD, DLL_PATH
 
 
 

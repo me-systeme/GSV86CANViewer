@@ -25,7 +25,7 @@ from pathlib import Path
 
 import openpyxl
 
-from gsvgrid.config import PROJECT_ROOT
+from gsv86canviewer.config import PROJECT_ROOT
 
 
 # -----------------------------------------------------------------------------

@@ -251,7 +251,7 @@ def _project_root() -> Path:
     if getattr(sys, "frozen", False):
         # When bundled, prefer the directory where the .exe resides.
         return Path(sys.executable).resolve().parent
-    # Dev mode: this file is in .../src/gsvgrid/config.py -> parents[2] is project root.
+    # Dev mode: this file is in .../src/gsv86canviewer/config.py -> parents[2] is project root.
     return Path(__file__).resolve().parents[2]
 
 PROJECT_ROOT = _project_root()

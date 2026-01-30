@@ -19,7 +19,7 @@ The software is designed to be:
 * Clear and deterministic for experimental and test‑bench use
 
 <p align="center">
-  <img src="screenshots/main_window.png" alt="GSV Grid – Main Window" width="900">
+  <img src="screenshots/main_window.png" alt="GSV86CAN Viewer – Main Window" width="900">
 </p>
 
 ---
@@ -55,7 +55,7 @@ This makes it easy to visually identify:
 
 ### ⚖️ Zero / Tare Function
 
-* A **"Zero" button** is located in the bottom‑right corner of the grid.
+* A **"Zero" button** is available below the tree.
 * When pressed, a confirmation dialog is shown.
 * If confirmed, **all active devices are zeroed** via the DLL.
 

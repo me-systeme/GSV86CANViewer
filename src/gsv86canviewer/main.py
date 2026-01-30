@@ -16,8 +16,8 @@ in the imported modules (MainWindow, ReaderThread, GSV86CAN, etc.).
 import sys
 from PyQt5 import QtWidgets  
 
-from gsvgrid.gsv86can import GSV86CAN
-from gsvgrid.main_window import MainWindow
+from gsv86canviewer.gsv86can import GSV86CAN
+from gsv86canviewer.main_window import MainWindow
 
 
 def main():

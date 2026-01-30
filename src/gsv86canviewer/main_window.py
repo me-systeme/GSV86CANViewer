@@ -15,13 +15,13 @@ import time
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtGui import QFont, QColor, QBrush
 
-from gsvgrid.config import ( 
+from gsv86canviewer.config import ( 
     DEVICE_CONFIG, 
     LOG_FILE, 
     LOG_RATE_HZ
 )
-from gsvgrid.reader_thread import ReaderThread
-from gsvgrid.recorder import DataRecorder
+from gsv86canviewer.reader_thread import ReaderThread
+from gsv86canviewer.recorder import DataRecorder
 
 
 class MainWindow(QtWidgets.QMainWindow):
