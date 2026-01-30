@@ -1,7 +1,7 @@
 """
 config.py
 
-YAML-based configuration loader for the GSV Grid application.
+YAML-based configuration loader for the GSV86CANViewer application.
 
 This module provides:
 - Helpers to parse common YAML value formats (hex CAN IDs, floats with units).
@@ -11,7 +11,7 @@ This module provides:
 The returned configuration is normalized:
 - Numeric strings are converted to int/float.
 - CAN IDs can be specified as "0x..." or decimal strings.
-- Grid and mapping entries are converted into convenient Python structures.
+- Mapping entries are converted into convenient Python structures.
 """
 import sys
 from pathlib import Path
@@ -106,7 +106,6 @@ def load_config(path: Path) -> dict:
     - Converts all required fields to expected Python types.
     - Normalizes nested configuration blocks into convenient structures:
       - DEVICE_CONFIG: list of dicts with numeric CAN IDs and float frequency
-      - GRID_MAP: dict[str, tuple[int, int]]
       - SENSORS_BY_NO: dict[int, sensor_info]
       - SENSOR_BY_DEVCH: dict[(dev_no, ch_idx0), sensor_no]
     - Applies defaults and validates values where appropriate:
@@ -123,11 +122,7 @@ def load_config(path: Path) -> dict:
         Normalized configuration dictionary. Keys include:
         - MYBUFFERSIZE (int)
         - CANBAUD (int)
-        - TOTAL_COLS (int)
-        - ROW_COLS (dict[int, list[int]])
-        - ACTIVE (set[str])
         - DEVICE_CONFIG (list[dict])
-        - GRID_MAP (dict[str, tuple[int,int]])
         - LOG_FILE (str|None)
         - LOG_RATE_HZ (float)
         - SENSORS_BY_NO (dict[int, dict])
@@ -151,18 +146,6 @@ def load_config(path: Path) -> dict:
     # -------------------------------------------------------------------------
     mybuffersize = int(cfg["dll"]["mybuffersize"])
     canbaud = int(cfg["dll"]["canbaud"])
-
-    # -------------------------------------------------------------------------
-    # Grid layout block
-    # -------------------------------------------------------------------------
-    total_cols = int(cfg["grid"]["total_cols"])
-
-    # YAML keys are strings; convert row keys to int for easy access
-    row_cols_raw = cfg["grid"]["row_cols"]
-    row_cols = {int(k): list(v) for k, v in row_cols_raw.items()}
-
-    # Active grid positions are strings like "3/4"
-    active = set(cfg["grid"]["active"])
 
     # -------------------------------------------------------------------------
     # Devices block:
@@ -192,13 +175,6 @@ def load_config(path: Path) -> dict:
             "answer_id": _parse_hex(d["answer_id"]),
             "frequency": float(freq) if freq is not None else None,
         })
-    
-    # -------------------------------------------------------------------------
-    # Grid mapping block: "row/col" -> [dev_no, channel_index]
-    # -------------------------------------------------------------------------
-    grid_map = {}
-    for k, v in cfg["grid_map"].items():
-        grid_map[str(k)] = (int(v[0]), int(v[1]))
 
     # -------------------------------------------------------------------------
     # Logging block:
@@ -252,13 +228,9 @@ def load_config(path: Path) -> dict:
     return {
         "MYBUFFERSIZE": mybuffersize,
         "CANBAUD": canbaud,
-        "TOTAL_COLS": total_cols,
-        "ROW_COLS": row_cols,
-        "ACTIVE": active,
         "DEVICE_CONFIG": device_config,
         "LOAD_DEFAULT_SETTINGS": load_default_settings,
         "AUTO_SENSITIVITY_ADJUSTMENT": auto_sensitivity_adjustment,
-        "GRID_MAP": grid_map,
         "LOG_FILE": log_file,
         "LOG_RATE_HZ": log_rate_hz,
         "SENSORS_BY_NO": sensors_by_no,
@@ -296,14 +268,9 @@ CONFIG = load_config(CONFIG_PATH)
 MYBUFFERSIZE = CONFIG["MYBUFFERSIZE"]
 CANBAUD = CONFIG["CANBAUD"]
 
-ROW_COLS = CONFIG["ROW_COLS"]
-TOTAL_COLS = CONFIG["TOTAL_COLS"]
-ACTIVE = CONFIG["ACTIVE"]
-
 DEVICE_CONFIG = CONFIG["DEVICE_CONFIG"]
 LOAD_DEFAULT_SETTINGS = CONFIG.get("LOAD_DEFAULT_SETTINGS", False)
 AUTO_SENSITIVITY_ADJUSTMENT = CONFIG.get("AUTO_SENSITIVITY_ADJUSTMENT", False)
-GRID_MAP = CONFIG["GRID_MAP"]
 
 LOG_FILE = CONFIG.get("LOG_FILE")
 LOG_RATE_HZ = CONFIG.get("LOG_RATE_HZ", 1.0)

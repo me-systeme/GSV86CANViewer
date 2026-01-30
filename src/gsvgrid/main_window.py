@@ -20,7 +20,6 @@ from gsvgrid.config import (
     LOG_FILE, 
     LOG_RATE_HZ
 )
-from gsvgrid.utils import make_blue_shades_stronger
 from gsvgrid.reader_thread import ReaderThread
 from gsvgrid.recorder import DataRecorder
 
@@ -150,8 +149,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             # Without LOG_FILE
             row_controls = QtWidgets.QHBoxLayout()
-            row_controls.addStretch(1)
-            row_controls.addWidget(self.btn_record, alignment=QtCore.Qt.AlignCenter)
             row_controls.addStretch(1)
             layout.addLayout(row_controls)
 
@@ -358,7 +355,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.apply_device_info(dev_info)
     
     # -------------------------------------------------------------------------
-    # Recorder init (no ACTIVE, no GRID_MAP)
+    # Recorder init 
     # -------------------------------------------------------------------------
     def _init_recorder_from_devinfo(self, dev_info: dict):
         # Stable key order: by dev_no then ch
@@ -496,7 +493,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def apply_device_info(self, dev_info: dict):
         """
-        Apply device metadata to grid cells (serial numbers + consistent colors).
+        Apply device metadata to tree viewer UI (serial numbers + consistent colors).
 
         What happens here:
         - Collect serial numbers from devices marked as ok.
@@ -522,20 +519,6 @@ class MainWindow(QtWidgets.QMainWindow):
             if info.get("ok") and info.get("serial") is not None:
                 serials.append(info["serial"])
 
-        unique_serials = sorted(set(serials))
-
-        # Assign new colors for serials we have not seen yet
-        missing = [sn for sn in unique_serials if sn not in self.sn_colors]
-        if missing:
-            shades = make_blue_shades_stronger(
-                len(missing),
-                base_hex="#0F8EBD",
-                dark_min=55,
-                light_max=250
-            )
-            for sn, col in zip(missing, shades):
-                self.sn_colors[sn] = col
-
         # Update all values that are mapped to devices
         for dev_no, dev_item in self.dev_items.items():
             info = dev_info.get(dev_no, {})
@@ -545,10 +528,9 @@ class MainWindow(QtWidgets.QMainWindow):
             dev_item.setText(2, "SN ?" if sn is None else f"SN {sn}")
 
             if ok:
-                qcol = self.sn_colors.get(sn) if sn is not None else None
-                self._set_item_row_color(dev_item, qcol, is_error=False)
+                self._set_item_row_color(dev_item, None, is_error=False)
                 for i in range(dev_item.childCount()):
-                    self._set_item_row_color(dev_item.child(i), qcol, is_error=False)
+                    self._set_item_row_color(dev_item.child(i), None, is_error=False)
             else:
                 self._set_item_row_color(dev_item, None, is_error=True)
                 for i in range(dev_item.childCount()):

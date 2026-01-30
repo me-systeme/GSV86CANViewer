@@ -1,7 +1,7 @@
 """
 recorder.py
 
-Measurement data recorder for the GSV Grid application. 
+Measurement data recorder for the GSV86CANViewer application. 
 
 This module provides the DataRecorder class, which can write measurement rows
 to either:
@@ -55,7 +55,7 @@ class DataRecorder:
         Path relative to the project root (e.g. "logs/data.xlsx").
         Must end in ".csv" or ".xlsx".
     keys : list[str]
-        Ordered list of grid keys (e.g. ["1/2", "2/2", ...]) that define the
+        Ordered list of device/channel keys (e.g. ["1/2", "2/2", ...]) that define the
         columns written to the file.
 
     Attributes
@@ -331,7 +331,7 @@ class DataRecorder:
         Parameters
         ----------
         values : dict
-            Dictionary mapping grid keys (e.g. "3/4") to numeric values.
+            Dictionary mapping device/channel keys (e.g. "3/4") to numeric values.
 
         Returns
         -------

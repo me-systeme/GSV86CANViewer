@@ -1,7 +1,7 @@
 """
 main.py
 
-Application entry point for the GSV Grid GUI.
+Application entry point for the GSV86CANViewer GUI.
 
 This module is intentionally small and focused:
 - It initializes the GSV86CAN DLL wrapper.

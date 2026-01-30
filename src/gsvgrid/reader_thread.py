@@ -6,7 +6,7 @@ Background acquisition thread for the GSV86CAN devices.
 This module contains ReaderThread, a QThread that:
 - Initializes and starts all configured devices (activate, set ranges/scales, set frequency, start TX).
 - Continuously reads buffered samples from the centralized DLL buffer.
-- Extracts the latest value per channel and maps them into the grid positions.
+- Extracts the latest value per channel and maps them into the tree channel/value UI.
 - Computes per-device update rates (Hz) over a sliding time window.
 - Executes user-triggered commands (e.g., "Zero all") safely inside the acquisition thread.
 """
@@ -51,7 +51,7 @@ class ReaderThread(QtCore.QThread):
     - During the acquisition loop:
       - Handle pending user commands from the GUI (e.g., zero request).
       - Read buffered data for each active device.
-      - Extract the latest channel values and map them onto the grid positions.
+      - Extract the latest channel values and map them onto the tree channel/value UI.
       - Compute per-device update rates (Hz) in a sliding time window.
       - Emit the latest values + rates to the UI.
 
@@ -67,9 +67,9 @@ class ReaderThread(QtCore.QThread):
     None
     """
 
-    valuesUpdated = QtCore.pyqtSignal(dict,dict) # (grid_values, rates_by_dev)
+    valuesUpdated = QtCore.pyqtSignal(dict,dict) # (values, rates_by_dev)
     statusUpdated = QtCore.pyqtSignal(str)       # status text for the UI
-    deviceInfoUpdated = QtCore.pyqtSignal(dict)  # dev_no -> {"serial":..., "ok": bool, "error": str|None}
+    deviceInfoUpdated = QtCore.pyqtSignal(dict)  # dev_no -> {"serial":..., "ok": bool, "error": str|None, "channels": int}
 
 
     def __init__(self, gsv, parent=None):
@@ -160,7 +160,7 @@ class ReaderThread(QtCore.QThread):
         # Startup: initialize device list + device info structure for the UI
         # ---------------------------------------------------------------------
         self.active_devices = []
-        dev_info = {}  # dev_no -> {"serial":..., "ok": bool, "error": str|None}
+        dev_info = {}  # dev_no -> {"serial":..., "ok": bool, "error": str|None, "channels": int}
 
         # ---------------------------------------------------------------------
         # DLL version (informational)
@@ -541,7 +541,7 @@ class ReaderThread(QtCore.QThread):
                 latest_by_dev[dev_no] = latest
 
             # -------------------------------------------------------------
-            # Map latest device values into grid positions
+            # Map latest device values into the channel/value tree view
             # -------------------------------------------------------------
             out = {}
             if latest_by_dev:

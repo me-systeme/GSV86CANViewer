@@ -1,18 +1,16 @@
-# 🔷 GSV Grid – Measurement Visualization & Logging Application
+# 🔷 GSV86CAN Viewer – Tree View Measurement Monitor & Logger
 
 ## Overview
 
-**GSV Grid** is a desktop application written in Python (PyQt5) for visualizing, configuring, and logging measurement data from **GSV‑6 / GSV‑8 CAN‑based measurement amplifiers**.
+**GSV86CAN Viewer** is a lightweight Windows desktop application (Python / PyQt5) for monitoring and logging measurement data from GSV-6 / GSV-8 CAN-based measurement amplifiers.
 
 The application:
 
-* Communicates with multiple GSV devices over **CAN bus** using the vendor DLL
-* Displays live measurement values in a **grid (diamond) layout**
-* Assigns **colors by device serial number** for intuitive visual grouping
-* Allows **mirroring** of the grid layout
+* Communicates with one or more GSV devices over **CAN bus** using the vendor DLL
+* Displays live measurement values in a **tree view** grouped by **Device → Channel**
 * Supports **zeroing (tare)** of all devices
 * Logs measurement data to **CSV or Excel (XLSX)** files
-* Is fully configurable via a **YAML configuration file**
+* Uses a **YAML configuration file** for CAN IDs and device options
 
 The software is designed to be:
 
@@ -28,45 +26,30 @@ The software is designed to be:
 
 ## ✨ Application Features
 
-### 📊 Live Grid View
+### 🌳 Live Tree View (Device → Channel → Value)
 
-* The main view shows a **diamond‑shaped grid** of measurement cells.
-* Each cell corresponds to a logical grid position like `3/4`.
-* Only positions listed as *active* in the configuration display live values.
-
-Each **active grid cell** shows:
-
-* Grid position (row/column)
-* Device serial number (SN)
-* CAN answer ID
-* Current measurement value (kN)
-
-Inactive cells show only their grid position.
+The main view shows a **tree list**:
+  * one top-level entry per device (from `config.yaml`)
+  * one child entry per device channel (channel count detected at runtime)
+Each channel row displays:
+  * Channel number (1-based)
+  * Current measurement value (e.g. kN)
+The device rows show:
+  * Device number
+  * CAN Answer ID
+  * Serial number (if readable)
+Channel count is determined dynamically via `chan = gsv.activate(...)`.
+You do **not** need to configure a channel mapping.
 
 ---
 
 ### 🎨 Device Color Coding
 
-* Each **unique device serial number** is assigned a distinct blue shade.
-* All channels belonging to the same device share the same color.python 
 * Devices with configuration or communication errors are highlighted in **red**.
 
 This makes it easy to visually identify:
 
-* Which channels belong to the same amplifier
 * Which devices failed to initialize correctly
-
----
-
-### 🔄 Mirrored View
-
-* A **Mirror View** toggle allows flipping the grid horizontally.
-* This is useful when the physical setup is mirrored relative to the screen.
-
-The mirror state:
-
-* Only affects the visual layout
-* Does **not** affect device mapping or logging
 
 ---
 
@@ -87,9 +70,8 @@ Technical notes:
 
 If logging is enabled in the YAML file:
 
-* A **REC button** appears above the grid
+* A **REC button** is shown
 * Recording can be started/stopped at runtime
-* On startup, the user is asked whether recording should begin immediately
 
 Supported formats:
 
@@ -102,6 +84,11 @@ Features:
 * User confirmation if a file already exists
 * Configurable logging rate (e.g. 1 sample per second)
 
+Notes:
+
+* Logging rate is **independent** of the device measurement frequency.
+* Logging writes **complete rows** using last-known values.
+* On startup, some channels may need a short time until they deliver their first value (depending on device streaming / CAN traffic).
 ---
 
 ### 📡 Status & Device Information
@@ -122,6 +109,11 @@ This helps diagnose:
 ### 🧩 YAML Configuration File
 
 All application behavior is controlled by `config.yaml`.
+The configuration file controls:
+* CAN baud rate and DLL buffer size
+* Device CAN IDs (cmd/answer)
+* Optional settings (frequency, scaling, sensor mapping)
+* Logging
 
 ### ⚙️ 1. `dll`
 
@@ -155,43 +147,6 @@ Notes:
 
 * Logging is independent of device frequency
 * Values are sampled from the latest available data
-
----
-
-### 🧱 3. `grid`
-
-Defines the visual layout.
-
-```yaml
-grid:
-  total_cols: 15
-  row_cols:
-    "1": [3, 7, 11]
-    "2": [2, 4, 6, 8, 10, 12]
-  active:
-    - "1/2"
-```
-
-| Key          | Description                   |
-| ------------ | ----------------------------- |
-| `total_cols` | Total number of grid columns  |
-| `row_cols`   | Column indices per grid row   |
-| `active`     | List of active grid positions |
-
----
-
-### 4. `grid_map`
-
-Maps grid positions to device channels.
-
-```yaml
-grid_map:
-  "1/2": [1, 0]
-```
-
-Meaning:
-
-* `1/2` → Device 1, channel index 0 (0‑based)
 
 ---
 
@@ -282,12 +237,11 @@ project_root/
 ├─ config.yaml
 ├─ GSV86CAN.dll
 ├─ src/
-│  └─ gsvgrid/
+│  └─ gsv86canviewer/
 │     ├─ main.py
 │     ├─ main_window.py
 │     ├─ reader_thread.py
 │     ├─ recorder.py
-│     ├─ grid_cell.py
 │     ├─ gsv86can.py
 │     ├─ utils.py
 │     └─ config.py
@@ -305,9 +259,9 @@ python run.py
 
 On startup:
 
-1. Devices are initialized
-2. The user is asked whether recording should start immediately
-3. Live data appears once CAN traffic is detected
+1. Devices are activated (CAN IDs from config)
+2. Channel count is detected automatically per device (`activate()` result)
+3. Streaming starts and the tree view updates as values arrive
 
 ---
 
@@ -352,20 +306,9 @@ config.yaml
 * All hardware access runs in a **QThread** (no UI blocking)
 * UI logic is strictly separated from acquisition logic
 * YAML config is loaded once and treated as read‑only
-
----
-
-## Extending the Application
-
-Typical extensions:
-
-* Additional sensor types
-* New grid layouts
-* Alternative color schemes
-* Export formats (e.g. HDF5)
-* Remote control / scripting interface
-
-The codebase is intentionally modular to support these extensions.
+* Channel structure is **not configured** manually:
+  * devices from YAML
+  * channels from `activate()`
 
 ---
 
