@@ -312,7 +312,7 @@ config.yaml
 
 ---
 
-## License / Usage
+## Usage
 
 This application is intended for **engineering, laboratory, and test‑bench use**.
 
@@ -321,3 +321,7 @@ Ensure that:
 * CAN IDs do not conflict with other devices
 * Frequencies stay within device limits
 * Zeroing is performed only under safe conditions
+
+## License
+
+This project is licensed under the MIT License – see the LICENSE file for details.
