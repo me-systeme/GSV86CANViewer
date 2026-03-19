@@ -24,6 +24,63 @@ The software is designed to be:
 
 ---
 
+## Installation
+
+### 🔹 Recommended Method (Stable Version)
+
+Download the latest stable version from the Releases page:
+
+👉 https://github.com/me-systeme/GSV86CANViewer/releases
+
+1. Open the page
+2. Select the latest version (e.g. `v1.0.0`)
+3. Download **Source code (zip)**
+4. Extract and run
+
+These versions are tested and considered stable.
+
+---
+
+### 🔹 Development Version (main branch)
+
+Alternatively, you can use the latest development version:
+
+```bash
+git clone https://github.com/me-systeme/GSV86CANViewer.git
+```
+
+⚠️ Note:
+The `main` branch may contain unfinished features or breaking changes.
+
+---
+
+### 🔹 Specific Version via Git
+
+If you want to use a specific version:
+
+```bash
+git clone --branch v1.0.0 --single-branch https://github.com/me-systeme/GSV86CANViewer.git
+```
+
+---
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/):
+
+* `MAJOR` – incompatible changes
+* `MINOR` – new features (backward-compatible)
+* `PATCH` – bug fixes
+
+Example:
+
+* `1.0.0` → first stable release
+* `1.1.0` → new feature
+* `1.0.1` → bug fix
+
+---
+
+
 ## ✨ Application Features
 
 ### 🌳 Live Tree View (Device → Channel → Value)
@@ -325,3 +382,7 @@ Ensure that:
 ## License
 
 This project is licensed under the MIT License – see the LICENSE file for details.
+
+## 📄 Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for version history.
