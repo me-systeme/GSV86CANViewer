@@ -40,6 +40,21 @@ logging:
   # - 10.0 => 10 rows per second
   rate_hz: 1.0
 
+  # mode:
+  # - hold_last:
+  #     fehlende Werte werden mit dem letzten bekannten Messwert aufgefüllt.
+  #     Gut für vollständig gefüllte Tabellen, kann aber Geräteausfälle verdecken.
+  #
+  # - strict_samples:
+  #     es werden nur tatsächlich neu empfangene Messwerte geschrieben.
+  #     Wenn für einen Kanal im Logging-Intervall kein neuer Wert angekommen ist,
+  #     bleibt die Zelle leer.
+  mode: "hold_last"
+
+  # Nur für strict_samples:
+  # Gibt eine Warnung aus, wenn im Logging-Intervall frische Werte fehlen.
+  warn_on_missing: true
+
 # -----------------------------------------------------------------------------
 # Device configuration
 # -----------------------------------------------------------------------------

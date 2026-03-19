@@ -70,13 +70,17 @@ class DataRecorder:
         The current output path for the next recording session.
     """
 
-    def __init__(self, file_path: str, keys: list[str]):
+    def __init__(self, file_path: str, keys: list[str], mode: str = "strict_samples"):
         # ---------------------------------------------------------------------
         # Basic configuration and state
         # ---------------------------------------------------------------------
         self.file_path = str(file_path)
         self.keys = list(keys)
         self.is_recording = False
+
+        if mode not in ("hold_last", "strict_samples"):
+            raise ValueError(f"Unsupported logging mode: {mode}")
+        self.mode = mode
 
         # ---------------------------------------------------------------------
         # Runtime objects for CSV and XLSX modes
@@ -108,6 +112,10 @@ class DataRecorder:
         # Cache of last known values (used to build complete rows)
         # ---------------------------------------------------------------------
         self._last_values = {k: None for k in self.keys}
+
+        # Nur für strict_samples:
+        self._pending_values = {k: None for k in self.keys}
+        self._last_write_missing_keys = []
 
     # -----------------------------------------------------------------------------
     # Path helpers
@@ -272,6 +280,8 @@ class DataRecorder:
             self._xlsx_rows = 1
 
         self._last_values = {k: None for k in self.keys}
+        self._pending_values = {k: None for k in self.keys}
+        self._last_write_missing_keys = []
         self.is_recording = True
 
     def stop(self):
@@ -311,10 +321,92 @@ class DataRecorder:
 
         self.is_recording = False
 
+    def last_write_had_missing_values(self) -> bool:
+        return bool(self._last_write_missing_keys)
+
+    def get_last_missing_keys(self) -> list[str]:
+        return list(self._last_write_missing_keys)
+    
+    def ingest(self, values: dict):
+        if not self.is_recording:
+            return
+
+        if self.mode == "hold_last":
+            for k, v in values.items():
+                if k in self._last_values:
+                    try:
+                        self._last_values[k] = float(v)
+                    except Exception:
+                        pass
+
+        elif self.mode == "strict_samples":
+            for k, v in values.items():
+                if k in self._pending_values:
+                    try:
+                        self._pending_values[k] = float(v)
+                    except Exception:
+                        pass
+
+    def _write_row(self, row):
+        if not self.is_recording:
+            return
+        # ---------------------------------------------------------------------
+        # Write to CSV (streaming) or append to XLSX (buffered)
+        # ---------------------------------------------------------------------
+        if self.ext == ".csv":
+            self._csv_writer.writerow(row)
+            # Intentionally not flushing on every write for performance
+        else:
+            self._ws.append(row)
+            self._xlsx_rows += 1
+    
+    def _write_hold_last(self):
+        
+        # ---------------------------------------------------------------------
+        # Do not write until all keys have at least one value
+        # ---------------------------------------------------------------------
+        if any(self._last_values[k] is None for k in self.keys):
+            return
+        
+        # ---------------------------------------------------------------------
+        # Build the output row (timestamp + values in stable key order)
+        # ---------------------------------------------------------------------
+        ts = datetime.now().isoformat(timespec="milliseconds")
+
+        row = [ts]
+        for k in self.keys:
+            v = self._last_values.get(k, None)
+            row.append("" if v is None else v)
+
+        self._write_row(row)
+        self._last_write_missing_keys = []
+
+    def _write_strict_samples(self):
+        
+
+        ts = datetime.now().isoformat(timespec="milliseconds")
+
+        row = [ts]
+        missing_keys = []
+
+        for k in self.keys:
+            v = self._pending_values.get(k, None)
+            if v is None:
+                row.append("")
+                missing_keys.append(k)
+            else:
+                row.append(v)
+
+        self._write_row(row)
+        self._last_write_missing_keys = missing_keys
+
+        # wichtig: Intervall zurücksetzen
+        self._pending_values = {k: None for k in self.keys}
+
     # -----------------------------------------------------------------------------
     # Data writing
     # -----------------------------------------------------------------------------
-    def write(self, values: dict):
+    def write(self):
         """
         Append one measurement row to the log.
 
@@ -340,39 +432,8 @@ class DataRecorder:
         if not self.is_recording:
             return
 
-        # ---------------------------------------------------------------------
-        # Update the last-known-value cache (only for keys we track)
-        # ---------------------------------------------------------------------
-        for k, v in values.items():
-            if k in self._last_values:
-                try:
-                    self._last_values[k] = float(v)
-                except Exception:
-                    # Ignore non-numeric values; keep the last valid value
-                    pass
-        
-        # ---------------------------------------------------------------------
-        # Do not write until all keys have at least one value
-        # ---------------------------------------------------------------------
-        if any(self._last_values[k] is None for k in self.keys):
-            return
-        
-        # ---------------------------------------------------------------------
-        # Build the output row (timestamp + values in stable key order)
-        # ---------------------------------------------------------------------
-        ts = datetime.now().isoformat(timespec="milliseconds")
-
-        row = [ts]
-        for k in self.keys:
-            v = self._last_values.get(k, None)
-            row.append("" if v is None else v)
-
-        # ---------------------------------------------------------------------
-        # Write to CSV (streaming) or append to XLSX (buffered)
-        # ---------------------------------------------------------------------
-        if self.ext == ".csv":
-            self._csv_writer.writerow(row)
-            # Intentionally not flushing on every write for performance
+        if self.mode == "hold_last":
+            self._write_hold_last()
         else:
-            self._ws.append(row)
-            self._xlsx_rows += 1
+            self._write_strict_samples()
+

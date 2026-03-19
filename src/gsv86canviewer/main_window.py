@@ -18,7 +18,9 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 from gsv86canviewer.config import ( 
     DEVICE_CONFIG, 
     LOG_FILE, 
-    LOG_RATE_HZ
+    LOG_RATE_HZ,
+    LOG_MODE,
+    LOG_WARN_ON_MISSING,
 )
 from gsv86canviewer.reader_thread import ReaderThread
 from gsv86canviewer.recorder import DataRecorder
@@ -329,10 +331,26 @@ class MainWindow(QtWidgets.QMainWindow):
         # Logging (rate-limited)
         # ---------------------------------------------------------------------
         if self.recorder and self.recorder.is_recording:
+            self.recorder.ingest(values)
+
             t = time.monotonic()
             if (t - self._log_last_t) >= self._log_min_dt:
                 self._log_last_t = t
-                self.recorder.write(values)
+                self.recorder.write()
+
+                if (
+                    LOG_MODE == "strict_samples"
+                    and LOG_WARN_ON_MISSING
+                    and self.recorder.last_write_had_missing_values()
+                ):
+                    missing = self.recorder.get_last_missing_keys()
+                    preview = ", ".join(missing[:6])
+                    if len(missing) > 6:
+                        preview += ", ..."
+                    self.status.setText(
+                        f"Status: Logging warning: missing fresh values for {len(missing)} channel(s): {preview}"
+                    )
+                    self.status.setStyleSheet(self.status_error_style)
 
     def on_device_info(self, dev_info: dict):
         # ---------------------------------------------------------------------
@@ -365,7 +383,11 @@ class MainWindow(QtWidgets.QMainWindow):
             nchan = int(dev_info.get(dev_no, {}).get("channels", 0) or 0)
             for ch in range(1, nchan + 1):
                 keys.append(f"{dev_no}/{ch}")
-        self.recorder = DataRecorder(LOG_FILE, keys)
+        self.recorder = DataRecorder(
+            LOG_FILE,
+            keys,
+            mode=LOG_MODE,
+        )
 
         self._log_last_t = 0.0
 

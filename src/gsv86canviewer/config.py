@@ -183,6 +183,8 @@ def load_config(path: Path) -> dict:
     # -------------------------------------------------------------------------
     log_file = None
     log_rate_hz = 1.0  # default: 1 sample per second
+    log_mode = "strict_samples"
+    log_warn_on_missing = True
 
     if isinstance(cfg.get("logging"), dict):
         lf = cfg["logging"].get("file")
@@ -194,6 +196,13 @@ def load_config(path: Path) -> dict:
                 log_rate_hz = float(rhz)
                 if log_rate_hz <= 0:
                     raise ValueError("logging.rate_hz must be > 0")
+            
+            mode = cfg["logging"].get("mode", "strict_samples")
+            if mode not in ("hold_last", "strict_samples"):
+                raise ValueError("logging.mode must be 'hold_last' or 'strict_samples'")
+            log_mode = str(mode)
+
+            log_warn_on_missing = bool(cfg["logging"].get("warn_on_missing", True))
     
     # -------------------------------------------------------------------------
     # Sensor metadata block: indexed by sensor_no
@@ -233,6 +242,8 @@ def load_config(path: Path) -> dict:
         "AUTO_SENSITIVITY_ADJUSTMENT": auto_sensitivity_adjustment,
         "LOG_FILE": log_file,
         "LOG_RATE_HZ": log_rate_hz,
+        "LOG_MODE": log_mode,
+        "LOG_WARN_ON_MISSING": log_warn_on_missing,
         "SENSORS_BY_NO": sensors_by_no,
         "SENSOR_BY_DEVCH": sensor_by_devch,
     }
@@ -274,6 +285,8 @@ AUTO_SENSITIVITY_ADJUSTMENT = CONFIG.get("AUTO_SENSITIVITY_ADJUSTMENT", False)
 
 LOG_FILE = CONFIG.get("LOG_FILE")
 LOG_RATE_HZ = CONFIG.get("LOG_RATE_HZ", 1.0)
+LOG_MODE = CONFIG.get("LOG_MODE", "strict_samples")
+LOG_WARN_ON_MISSING = CONFIG.get("LOG_WARN_ON_MISSING", True)
 
 # Convenience mapping: dev_no -> device config dict
 DEVICE_BY_DEVNO = {d["dev_no"]: d for d in DEVICE_CONFIG}
