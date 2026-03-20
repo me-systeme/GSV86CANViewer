@@ -1,3 +1,5 @@
+# Changelog
+
 ## [1.1.0] - 2026-03-20
 
 ### Added
@@ -21,3 +23,13 @@
 ### Fixed
 - Logging warning no longer persists after data recovers
 - Improved internal state consistency for status messages
+
+## [1.0.0] - 2026-03-19
+### Added
+- Initial release of GSV86CAN Viewer
+- Tree-based live measurement view
+- YAML configuration support
+- Logging (CSV / XLSX)
+- Zero / tare functionality
+
+
