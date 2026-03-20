@@ -203,7 +203,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.status = QtWidgets.QLabel("Status: -")
         self.dev_status = QtWidgets.QLabel("Devices: -")
-        
+
         self._base_status_msg = "Status: -"
         self._logging_warning_active = False
 
@@ -284,6 +284,22 @@ class MainWindow(QtWidgets.QMainWindow):
         dev_item.setExpanded(True)
 
     def _show_logging_warning(self, missing: list[str]):
+        """
+        Display a temporary logging warning in the status bar.
+
+        This is used in strict_samples mode when, during a logging interval,
+        not all channels delivered fresh values.
+
+        Behavior:
+        - Overrides the normal status message temporarily
+        - Highlights the status line in error color
+        - Shows a short preview of missing channels
+
+        Parameters
+        ----------
+        missing : list[str]
+            List of channel keys (e.g. "1/2") that had no fresh value.
+        """
         preview = ", ".join(missing[:6])
         if len(missing) > 6:
             preview += ", ..."
@@ -295,6 +311,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.status.setStyleSheet(self.status_error_style)
     
     def _clear_logging_warning(self):
+        """
+        Clear the active logging warning and restore the base status message.
+
+        Behavior:
+        - Restores the last non-warning status message
+        - Restores normal or error styling depending on that message
+
+        Notes
+        -----
+        This is called automatically when a logging interval completes
+        without missing values.
+        """
         if not self._logging_warning_active:
             return
 
@@ -307,9 +335,18 @@ class MainWindow(QtWidgets.QMainWindow):
             self.status.setStyleSheet(self.status_default_style)
 
     def on_status(self, msg: str):
-        # ---------------------------------------------------------------------
-        # Status line updates and basic severity coloring
-        # ---------------------------------------------------------------------
+        """
+        Update the base status message.
+
+        Important:
+        - This does NOT override an active logging warning.
+        - The message is stored and will be shown once warnings are cleared.
+
+        Parameters
+        ----------
+        msg : str
+            New status message from ReaderThread.
+        """
         self._base_status_msg = f"Status: {msg}"
 
         if not self._logging_warning_active:
@@ -361,6 +398,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # ---------------------------------------------------------------------
         # Logging (rate-limited)
         # ---------------------------------------------------------------------
+        # Behavior:
+        # - Values are continuously ingested
+        # - Writing happens at configured rate (LOG_RATE_HZ)
+        # - In strict_samples mode:
+        #     - Missing values trigger a temporary warning
+        #     - Warning disappears automatically when data is complete again
         if self.recorder and self.recorder.is_recording:
             self.recorder.ingest(values)
 

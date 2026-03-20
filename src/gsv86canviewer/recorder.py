@@ -113,7 +113,11 @@ class DataRecorder:
         # ---------------------------------------------------------------------
         self._last_values = {k: None for k in self.keys}
 
-        # Nur für strict_samples:
+        # Only for strict_samples:
+        # - _pending_values collects values within one logging interval
+        # - After write():
+        #     - Missing values are tracked
+        #     - The buffer is reset for the next interval
         self._pending_values = {k: None for k in self.keys}
         self._last_write_missing_keys = []
 
@@ -322,12 +326,49 @@ class DataRecorder:
         self.is_recording = False
 
     def last_write_had_missing_values(self) -> bool:
+        """
+        Return whether the most recent write operation had missing values.
+
+        Returns
+        -------
+        bool
+            True if at least one configured key had no fresh value in the last
+            written row, otherwise False.
+        """
         return bool(self._last_write_missing_keys)
 
     def get_last_missing_keys(self) -> list[str]:
+        """
+        Return the list of keys that were missing in the most recent write.
+
+        Returns
+        -------
+        list[str]
+            List of device/channel keys (e.g. "1/2") that had no fresh value
+            during the last logging interval.
+        """
         return list(self._last_write_missing_keys)
     
     def ingest(self, values: dict):
+        """
+        Ingest newly received values into the recorder state.
+
+        Behavior
+        --------
+        - In `hold_last` mode:
+        updates the persistent last-known-value cache.
+        - In `strict_samples` mode:
+        updates the interval-local pending-value cache.
+
+        Parameters
+        ----------
+        values : dict
+            Dictionary mapping device/channel keys (e.g. "2/3") to numeric values.
+
+        Returns
+        -------
+        None
+        """
         if not self.is_recording:
             return
 
@@ -348,6 +389,23 @@ class DataRecorder:
                         pass
 
     def _write_row(self, row):
+        """
+        Write one already prepared row to the active output format.
+
+        Behavior
+        --------
+        - CSV: write directly to the open file
+        - XLSX: append to the in-memory workbook
+
+        Parameters
+        ----------
+        row : list
+            Fully prepared output row including timestamp and channel values.
+
+        Returns
+        -------
+        None
+        """
         if not self.is_recording:
             return
         # ---------------------------------------------------------------------
@@ -361,7 +419,22 @@ class DataRecorder:
             self._xlsx_rows += 1
     
     def _write_hold_last(self):
-        
+        """
+        Write one row in hold_last mode.
+
+        Behavior
+        --------
+        - No row is written until every configured key has been seen at least once
+        - The row contains:
+        - current timestamp
+        - the last known value for every configured key
+        - Missing keys from the previous interval are cleared because this mode
+        always writes complete rows once initialized
+
+        Returns
+        -------
+        None
+        """
         # ---------------------------------------------------------------------
         # Do not write until all keys have at least one value
         # ---------------------------------------------------------------------
@@ -382,8 +455,20 @@ class DataRecorder:
         self._last_write_missing_keys = []
 
     def _write_strict_samples(self):
-        
+        """
+        Write one row using strict_samples mode.
 
+        Behavior:
+        - Only values received within the current interval are written
+        - Missing values are written as empty cells
+        - Missing keys are tracked for UI warning display
+        - After writing, the interval buffer is reset
+
+        This mode is useful to detect:
+        - dropped CAN frames
+        - stalled devices
+        - timing inconsistencies
+        """
         ts = datetime.now().isoformat(timespec="milliseconds")
 
         row = [ts]
@@ -408,22 +493,15 @@ class DataRecorder:
     # -----------------------------------------------------------------------------
     def write(self):
         """
-        Append one measurement row to the log.
+        Write one logging row using the currently active recording mode.
 
-        What happens:
-        - Updates the internal last-value cache for any keys present in `values`.
-        - If any configured key has never been seen yet, no row is written.
-          (This prevents incomplete rows right after startup.)
-        - Creates a row consisting of:
-          - ISO timestamp with millisecond precision
-          - one column per configured key in `self.keys`
-            (filled with the last known value)
-        - Writes the row to CSV or appends it to the XLSX sheet.
-
-        Parameters
-        ----------
-        values : dict
-            Dictionary mapping device/channel keys (e.g. "3/4") to numeric values.
+        Behavior
+        --------
+        - `hold_last`:
+        writes a complete row using the latest known value for each key
+        - `strict_samples`:
+        writes only values received during the current logging interval;
+        missing values remain empty
 
         Returns
         -------

@@ -144,8 +144,59 @@ Features:
 Notes:
 
 * Logging rate is **independent** of the device measurement frequency.
-* Logging writes **complete rows** using last-known values.
 * On startup, some channels may need a short time until they deliver their first value (depending on device streaming / CAN traffic).
+
+
+### ⚠️ Logging Modes & Data Quality
+
+The application supports two logging modes:
+
+#### `strict_samples` (default-like behavior)
+
+* Only values received during the logging interval are written
+
+* Missing values remain empty
+
+Additionally:
+
+* A **live warning** is shown in the status bar if values are missing
+
+* The warning disappears automatically once all channels deliver data again
+
+✔ Best for:
+
+* debugging CAN communication
+
+* validating measurement timing
+
+* detecting data loss
+
+#### `hold_last`
+
+* Missing values are filled using the last known value
+
+* Produces fully populated tables
+
+* May hide:
+
+  * device dropouts
+
+  * missing CAN messages
+
+✔ Best for:
+
+* long-term monitoring
+
+* Excel-based workflows
+
+### ⚠️ Important Note
+
+* Logging rate (`rate_hz`) is independent of device frequency
+
+* If `rate_hz` is too high compared to CAN traffic:
+
+  → missing values will occur frequently
+
 ---
 
 ### 📡 Status & Device Information

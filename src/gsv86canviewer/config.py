@@ -178,8 +178,13 @@ def load_config(path: Path) -> dict:
 
     # -------------------------------------------------------------------------
     # Logging block:
-    # - file is optional (if missing/empty => logging UI disabled)
+    # - file is optional (if missing/empty => recording UI is disabled)
     # - rate_hz defaults to 1.0 and must be > 0
+    # - mode selects how rows are written:
+    #     - hold_last: fill missing values with the last known value
+    #     - strict_samples: write only values received in the current interval
+    # - warn_on_missing controls whether missing-value warnings are shown
+    #   in the UI when strict_samples mode detects incomplete intervals
     # -------------------------------------------------------------------------
     log_file = None
     log_rate_hz = 1.0  # default: 1 sample per second
