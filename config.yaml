@@ -49,7 +49,7 @@ logging:
   #     es werden nur tatsächlich neu empfangene Messwerte geschrieben.
   #     Wenn für einen Kanal im Logging-Intervall kein neuer Wert angekommen ist,
   #     bleibt die Zelle leer.
-  mode: "hold_last"
+  mode: "strict_samples"
 
   # Nur für strict_samples:
   # Gibt eine Warnung aus, wenn im Logging-Intervall frische Werte fehlen.

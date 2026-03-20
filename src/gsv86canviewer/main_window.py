@@ -203,6 +203,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.status = QtWidgets.QLabel("Status: -")
         self.dev_status = QtWidgets.QLabel("Devices: -")
+        
+        self._base_status_msg = "Status: -"
+        self._logging_warning_active = False
+
+        self.status.setText(self._base_status_msg)
 
         self.status_default_style = "color: #222; padding-top: 6px;"
         self.status_error_style = "color: #D64545; font-weight: 700;"
@@ -278,16 +283,42 @@ class MainWindow(QtWidgets.QMainWindow):
 
         dev_item.setExpanded(True)
 
+    def _show_logging_warning(self, missing: list[str]):
+        preview = ", ".join(missing[:6])
+        if len(missing) > 6:
+            preview += ", ..."
+
+        self._logging_warning_active = True
+        self.status.setText(
+            f"Status: Logging warning: missing fresh values for {len(missing)} channel(s): {preview}"
+        )
+        self.status.setStyleSheet(self.status_error_style)
+    
+    def _clear_logging_warning(self):
+        if not self._logging_warning_active:
+            return
+
+        self._logging_warning_active = False
+        self.status.setText(self._base_status_msg)
+
+        if "Failed devices:" in self._base_status_msg or "FAIL" in self._base_status_msg:
+            self.status.setStyleSheet(self.status_error_style)
+        else:
+            self.status.setStyleSheet(self.status_default_style)
+
     def on_status(self, msg: str):
         # ---------------------------------------------------------------------
         # Status line updates and basic severity coloring
         # ---------------------------------------------------------------------
-        self.status.setText(f"Status: {msg}")
+        self._base_status_msg = f"Status: {msg}"
 
-        if "Failed devices:" in msg or "FAIL" in msg:
-            self.status.setStyleSheet(self.status_error_style)
-        else:
-            self.status.setStyleSheet(self.status_default_style)
+        if not self._logging_warning_active:
+            self.status.setText(self._base_status_msg)
+
+            if "Failed devices:" in msg or "FAIL" in msg:
+                self.status.setStyleSheet(self.status_error_style)
+            else:
+                self.status.setStyleSheet(self.status_default_style)
 
     def on_values(self, values: dict, updates_by_dev: dict):
         # ---------------------------------------------------------------------
@@ -338,19 +369,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._log_last_t = t
                 self.recorder.write()
 
-                if (
-                    LOG_MODE == "strict_samples"
-                    and LOG_WARN_ON_MISSING
-                    and self.recorder.last_write_had_missing_values()
-                ):
-                    missing = self.recorder.get_last_missing_keys()
-                    preview = ", ".join(missing[:6])
-                    if len(missing) > 6:
-                        preview += ", ..."
-                    self.status.setText(
-                        f"Status: Logging warning: missing fresh values for {len(missing)} channel(s): {preview}"
-                    )
-                    self.status.setStyleSheet(self.status_error_style)
+                if LOG_MODE == "strict_samples" and LOG_WARN_ON_MISSING:
+                    if self.recorder.last_write_had_missing_values():
+                        missing = self.recorder.get_last_missing_keys()
+                        self._show_logging_warning(missing)
+                    else:
+                        self._clear_logging_warning()
 
     def on_device_info(self, dev_info: dict):
         # ---------------------------------------------------------------------
