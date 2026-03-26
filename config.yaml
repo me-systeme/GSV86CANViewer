@@ -81,6 +81,26 @@ devices:
   auto_sensitivity_adjustment: true   
 
   # Per-device CAN configuration
+  # -------------------------------------------------------------------------
+  # ⚠️ IMPORTANT: CAN ID CONFIGURATION
+  #
+  # All devices must already be correctly configured BEFORE connecting them
+  # to a shared CAN bus.
+  #
+  # Requirements:
+  # - cmd_id, answer_id and value_id must be globally unique
+  # - No two devices may transmit on the same CAN ID
+  #
+  # If multiple devices share the same value_id, CAN collisions will occur
+  # immediately — even before this application is started.
+  #
+  # This application does NOT modify CAN settings.
+  # Use a dedicated configuration tool to configure devices, for example:
+  # StartupCAN: https://github.com/me-systeme/StartupCAN
+  #
+  # Recommended:
+  # - value_id = answer_id
+  # -------------------------------------------------------------------------
   config:
     - dev_no: 1
       serial: 25455437

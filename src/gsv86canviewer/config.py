@@ -93,6 +93,76 @@ def _parse_float_with_unit(text: str) -> float:
     num = m.group(0).replace(",", ".")
     return float(num)
 
+# -----------------------------------------------------------------------------
+# Validation helpers
+# -----------------------------------------------------------------------------
+def _assert_unique_can_fields(name: str, items: list[dict], *, strict_numbers: bool = True):
+    """
+    Validate CAN ID usage within one list.
+
+    Rules:
+    - `cmd_id != answer_id` must always hold per device.
+    - If `strict_numbers=True`, no CAN number may appear twice anywhere
+      across cmd_id and answer_id of the whole list.
+    - If `strict_numbers=False`, duplicate numbers are allowed across devices,
+      but still not within one device.
+
+    Args:
+        name:
+            Human-readable section name for error messages.
+
+        items:
+            List of device dictionaries.
+
+        strict_numbers:
+            Whether every CAN number in the list must be unique.
+
+    Raises:
+        ValueError:
+            If the validation fails.
+    """
+    numbers: list[int] = []
+
+    for d in (items or []):
+        cmd = int(d["cmd_id"])
+        ans = int(d["answer_id"])
+
+        if cmd == ans:
+            raise ValueError(
+                f"{name}: cmd_id and answer_id must not be identical "
+                f"(dev_no={d.get('dev_no', '?')} ID=0x{cmd:X} / {cmd})."
+            )
+
+        numbers.append(cmd)
+        numbers.append(ans)
+
+    if strict_numbers:
+        if len(numbers) != len(set(numbers)):
+            dup = next(x for x in numbers if numbers.count(x) > 1)
+            raise ValueError(
+                f"{name}: CAN ID 0x{dup:X} ({dup}) occurs more than once "
+                "(neither cmd_id nor answer_id may be duplicated)."
+            )
+
+def _assert_unique_dev_no(name: str, items: list[dict]):
+    """
+    Ensure that `dev_no` values are unique within one list.
+
+    Args:
+        name:
+            Human-readable section name for error messages.
+
+        items:
+            List of device dictionaries.
+
+    Raises:
+        ValueError:
+            If a device number occurs more than once.
+    """
+    dev_nos = [int(d["dev_no"]) for d in (items or [])]
+    if len(dev_nos) != len(set(dev_nos)):
+        dup = next(n for n in dev_nos if dev_nos.count(n) > 1)
+        raise ValueError(f"{name}: dev_no={dup} occurs more than once.")
 
 # -----------------------------------------------------------------------------
 # Main configuration loader
@@ -175,6 +245,9 @@ def load_config(path: Path) -> dict:
             "answer_id": _parse_hex(d["answer_id"]),
             "frequency": float(freq) if freq is not None else None,
         })
+
+    _assert_unique_dev_no("devices.config", device_config)
+    _assert_unique_can_fields("devices.config", device_config, strict_numbers=True)
 
     # -------------------------------------------------------------------------
     # Logging block:

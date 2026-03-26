@@ -159,8 +159,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # Tree
         # ---------------------------------------------------------------------
         self.tree = QtWidgets.QTreeWidget()
-        self.tree.setColumnCount(5)
-        self.tree.setHeaderLabels(["Device", "CAN", "Serial", "Channel", "Value"])
+        self.tree.setColumnCount(6)
+        self.tree.setHeaderLabels(["Device", "Answer CAN", "Value CAN", "Serial", "Channel", "Value"])
         self.tree.setRootIsDecorated(True)
         self.tree.setAlternatingRowColors(True)
         self.tree.setUniformRowHeights(True)
@@ -250,7 +250,14 @@ class MainWindow(QtWidgets.QMainWindow):
         for d in DEVICE_CONFIG:
             dev_no = d["dev_no"]
             ans = d["answer_id"]
-            dev_item = QtWidgets.QTreeWidgetItem([f"DEV {dev_no}", f"0x{ans:03X}", "SN ?", "", ""])
+            dev_item = QtWidgets.QTreeWidgetItem([
+                f"DEV {dev_no}",
+                f"0x{ans:03X}",
+                "?",
+                "SN ?",
+                "",
+                "",
+            ])
             self.tree.addTopLevelItem(dev_item)
             self.dev_items[dev_no] = dev_item
 
@@ -262,7 +269,8 @@ class MainWindow(QtWidgets.QMainWindow):
         hdr.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(4, QtWidgets.QHeaderView.Stretch)
+        hdr.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(5, QtWidgets.QHeaderView.Stretch)
 
     def _ensure_channels(self, dev_no: int, nchan: int):
         # ---------------------------------------------------------------------
@@ -277,7 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
             key = (dev_no, ch)
             if key in self.chan_items:
                 continue
-            ch_item = QtWidgets.QTreeWidgetItem(["", "", "", f"CH {ch}", "-"])
+            ch_item = QtWidgets.QTreeWidgetItem(["", "", "", "", f"CH {ch}", "-"])
             dev_item.addChild(ch_item)
             self.chan_items[key] = ch_item
 
@@ -380,9 +388,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     continue
             
             try:
-                item.setText(4, f"{val:.2f} kN")
+                item.setText(5, f"{val:.2f} kN")
             except Exception:
-                item.setText(4, "NaN")
+                item.setText(5, "NaN")
 
         # ---------------------------------------------------------------------
         # Per-device update rate line (Hz)
@@ -474,7 +482,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Optimistic UI update (instant feedback)
         for item in self.chan_items.values():
-            item.setText(4, "0.00 kN")
+            item.setText(5, "0.00 kN")
 
         # Thread request (ensures DLL access happens in the reader thread)
         try:
@@ -595,26 +603,21 @@ class MainWindow(QtWidgets.QMainWindow):
         Parameters
         ----------
         dev_info : dict
-            Mapping dev_no -> {"serial": int|None, "ok": bool, "error": str|None}
+            Mapping dev_no -> {"serial":..., "value_id":..., "ok": bool, "error": str|None, "channels": int}
 
         Returns
         -------
         None
         """
-
-        # Collect serial numbers from OK devices only
-        serials = []
-        for dev_no, info in dev_info.items():
-            if info.get("ok") and info.get("serial") is not None:
-                serials.append(info["serial"])
-
         # Update all values that are mapped to devices
         for dev_no, dev_item in self.dev_items.items():
             info = dev_info.get(dev_no, {})
             sn = info.get("serial", None)
             ok = info.get("ok", False)
+            value_id = info.get("value_id", None)
 
-            dev_item.setText(2, "SN ?" if sn is None else f"SN {sn}")
+            dev_item.setText(2, "?" if value_id is None else f"0x{value_id:03X}")
+            dev_item.setText(3, "SN ?" if sn is None else f"SN {sn}")
 
             if ok:
                 self._set_item_row_color(dev_item, None, is_error=False)

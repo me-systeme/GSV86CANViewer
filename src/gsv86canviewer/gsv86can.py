@@ -63,6 +63,16 @@ _IN_TYPE_NAMES = {
     INTYP_TEMP_K:       "Type K",
 }
 
+# ------------------------------------------------------------------------------
+# CAN settings indices (from DLL header)
+# ------------------------------------------------------------------------------
+CANSET_CAN_IN_CMD_ID     = 0  # CAN_IN command Can-ID
+CANSET_CAN_OUT_ANS_ID    = 1  # CAN_OUT response Can-ID
+CANSET_CAN_CV_VALUE_ID   = 2  # CAN_CV value Can-ID
+CANSET_CAN_CAST_MCAST_ID = 3  # CAN_CAST multicast Can-ID
+CANSET_CAN_BAUD_HZ       = 4  # CAN_BAUD baudrate (in Hz)
+CANSET_CAN_FLAGS         = 5  # CAN_FLAGS
+
 class GSV86CAN:
     """
     Python wrapper for the GSV86CAN DLL.
@@ -183,6 +193,13 @@ class GSV86CAN:
             ct.c_double,   # Scale
         ]
         self.dll.GSV86CANwriteAoutScale.restype = ct.c_int
+
+        self.dll.GSV86CANgetCANSettings.argtypes = [
+            ct.c_int,                 # DevNo
+            ct.c_int,                 # Index
+            ct.POINTER(ct.c_ulong),   # out Settings (unsigned long*)
+        ]
+        self.dll.GSV86CANgetCANSettings.restype = ct.c_int
 
     # -------------------------------------------------------------------------
     # Basic information / lifecycle
@@ -339,6 +356,38 @@ class GSV86CAN:
     # -------------------------------------------------------------------------
     # Device status / metadata
     # -------------------------------------------------------------------------
+    def get_can_settings(self, dev_no: int, index: int) -> int:
+        """
+        Read CAN settings value from the device.
+
+        Mirrors the C function:
+            int GSV86CANgetCANSettings(int DevNo, int Index, unsigned long *Settings)
+
+        Parameters
+        ----------
+        dev_no : int
+            Device number.
+        index : int
+            Settings index.
+
+        Returns
+        -------
+        int
+            Settings value (unsigned long) as Python int.
+
+        Raises
+        ------
+        RuntimeError
+            If the DLL returns GSV_ERROR.
+        """
+        settings = ct.c_ulong(0)
+
+        r = self.dll.GSV86CANgetCANSettings(dev_no, int(index), ct.byref(settings))
+        if r == GSV_ERROR:
+            raise RuntimeError(self.last_error_text(dev_no))
+
+        return int(settings.value)
+    
     def get_serial_no(self, dev_no: int) -> int:
         """
         Read the device serial number.

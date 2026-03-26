@@ -25,7 +25,9 @@ from gsv86canviewer.config import (
     AUTO_SENSITIVITY_ADJUSTMENT,
 )
 from gsv86canviewer.utils import extract_latest_channels
-
+from gsv86canviewer.gsv86can import (
+    CANSET_CAN_CV_VALUE_ID,
+)
 
 
 
@@ -69,7 +71,7 @@ class ReaderThread(QtCore.QThread):
 
     valuesUpdated = QtCore.pyqtSignal(dict,dict) # (values, rates_by_dev)
     statusUpdated = QtCore.pyqtSignal(str)       # status text for the UI
-    deviceInfoUpdated = QtCore.pyqtSignal(dict)  # dev_no -> {"serial":..., "ok": bool, "error": str|None, "channels": int}
+    deviceInfoUpdated = QtCore.pyqtSignal(dict)  # dev_no -> {"serial":..., "value_id":..., "ok": bool, "error": str|None, "channels": int}
 
 
     def __init__(self, gsv, parent=None):
@@ -160,7 +162,7 @@ class ReaderThread(QtCore.QThread):
         # Startup: initialize device list + device info structure for the UI
         # ---------------------------------------------------------------------
         self.active_devices = []
-        dev_info = {}  # dev_no -> {"serial":..., "ok": bool, "error": str|None, "channels": int}
+        dev_info = {}  # dev_no -> {"serial":..., "value_id":..., "ok": bool, "error": str|None, "channels": int}
 
         # ---------------------------------------------------------------------
         # DLL version (informational)
@@ -202,6 +204,25 @@ class ReaderThread(QtCore.QThread):
                     sn = self.gsv.get_serial_no(dev_no)
                 except Exception:
                     sn = None
+
+                # CAN value ID is optional; failure must not kill acquisition
+                try:
+                    value_id = self.gsv.get_can_settings(dev_no, CANSET_CAN_CV_VALUE_ID)
+                except Exception as e:
+                    value_id = None
+                    self.statusUpdated.emit(
+                        f"WARN: Dev {dev_no}: failed to read CAN value ID: {e}"
+                    )
+                
+                # Optional readback of answer ID for diagnostics
+                try:
+                    if value_id is not None and int(d["answer_id"]) != value_id:
+                        self.statusUpdated.emit(
+                            f"WARN: Dev {dev_no}: configured answer CAN ID 0x{int(d['answer_id']):03X} "
+                            f"differs from device value CAN ID 0x{value_id:03X}"
+                        )
+                except Exception:
+                    pass
 
                 # -------------------------------------------------------------
                 # Per-channel range + scaling setup (optional but recommended)
@@ -397,7 +418,13 @@ class ReaderThread(QtCore.QThread):
                             if sensitivity + 1e-9 < char_mvv:
                                 limited_kn = (nominal_kn / char_mvv) * sensitivity
                                 saturation_error = f"WARNING: measuring range limited to {limited_kn:g} kN (sensor {sensor_no})"
-                                dev_info[dev_no] = {"serial": sn, "ok": False, "error": saturation_error, "channels": chan}
+                                dev_info[dev_no] = {
+                                    "serial": sn,
+                                    "value_id": value_id,
+                                    "ok": False,
+                                    "error": saturation_error,
+                                    "channels": chan,
+                                }
 
                                 self.statusUpdated.emit(
                                     f"WARN: Dev {dev_no} Ch{ch}: effective sensitivity {sensitivity:g} mV/V < "
@@ -433,7 +460,13 @@ class ReaderThread(QtCore.QThread):
                         self.statusUpdated.emit(f"Dev {dev_no}: setFrequency({freq} Hz) OK")
                     except RuntimeError as e:
                         freq_error = f"FAIL setFrequency({freq} Hz): {e}"
-                        dev_info[dev_no] = {"serial": sn, "ok": False, "error": freq_error, "channels": chan}
+                        dev_info[dev_no] = {
+                            "serial": sn,
+                            "value_id": value_id,
+                            "ok": False,
+                            "error": freq_error,
+                            "channels": chan,
+                        }
                         self.statusUpdated.emit(
                             f"FAIL: Dev {dev_no} setFrequency({freq} Hz) CMD=0x{d['cmd_id']:03X} ANS=0x{d['answer_id']:03X}: {e}"
                         )
@@ -445,7 +478,13 @@ class ReaderThread(QtCore.QThread):
                 
                 # If no hard error was recorded, mark as OK
                 if freq_error == None and saturation_error == False:
-                    dev_info[dev_no] = {"serial": sn, "ok": True, "error": None, "channels": chan}
+                    dev_info[dev_no] = {
+                        "serial": sn,
+                        "value_id": value_id,
+                        "ok": True,
+                        "error": None,
+                        "channels": chan,
+                    }
                     self.statusUpdated.emit(
                         f"OK: Dev {dev_no} CMD=0x{d['cmd_id']:03X} ANS=0x{d['answer_id']:03X} channels={chan}"
                     )
@@ -455,7 +494,13 @@ class ReaderThread(QtCore.QThread):
 
             except Exception as e:
                 # Device unreachable or misconfigured: skip it
-                dev_info[dev_no] = {"serial": None, "ok": False, "error": str(e)}
+                dev_info[dev_no] = {
+                    "serial": None,
+                    "value_id": None,
+                    "ok": False,
+                    "error": str(e),
+                    "channels": 0,
+                }
                 self.statusUpdated.emit(
                     f"FAIL Dev {dev_no} CMD=0x{d['cmd_id']:03X} ANS=0x{d['answer_id']:03X}: {e}"
                 )
