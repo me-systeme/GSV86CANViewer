@@ -93,10 +93,28 @@ Each channel row displays:
   * Current measurement value (e.g. kN)
 The device rows show:
   * Device number
-  * CAN Answer ID
+  * Configured CAN Answer ID
+  * Device-read CAN Value ID
   * Serial number (if readable)
 Channel count is determined dynamically via `chan = gsv.activate(...)`.
-You do **not** need to configure a channel mapping.
+You do **not** need to configure the channel count manually.
+
+---
+
+### 🔎 CAN ID Diagnostics
+
+The device rows show both:
+
+* the configured `answer_id` from `config.yaml`
+* the device-read `value_id` from the DLL
+
+This makes it easier to detect configuration mismatches such as:
+
+* `value_id != answer_id`
+* unexpected CAN device settings on the real hardware
+
+This diagnostic display is read-only.
+The Viewer does not modify CAN settings on devices.
 
 ---
 
@@ -210,6 +228,7 @@ This helps diagnose:
 
 * CAN communication issues
 * Incorrect baud rates or IDs
+* Mismatches between configured answer CAN ID and device-read value CAN ID
 * Devices that stopped sending data
 
 ---
@@ -219,9 +238,13 @@ This helps diagnose:
 All application behavior is controlled by `config.yaml`.
 The configuration file controls:
 * CAN baud rate and DLL buffer size
-* Device CAN IDs (cmd/answer)
+* Device CAN IDs (`cmd_id` / `answer_id`)
 * Optional settings (frequency, scaling, sensor mapping)
 * Logging
+
+Note:
+* `value_id` is not configured in `config.yaml`
+* The Viewer reads the device-side `value_id` via the DLL for diagnostic display only
 
 ### ⚙️ 1. `dll`
 
@@ -281,6 +304,12 @@ devices:
 | `answer_id`                   | CAN answer ID                                                |
 
 Per‑device frequency overrides are supported by setting `frequency` inside a device entry.
+
+Notes:
+
+* `answer_id` is configured in `config.yaml`
+* `value_id` is not configured here
+* The Viewer reads `value_id` from the device and shows it in the UI as diagnostic information
 
 ---
 
@@ -369,7 +398,8 @@ On startup:
 
 1. Devices are activated (CAN IDs from config)
 2. Channel count is detected automatically per device (`activate()` result)
-3. Streaming starts and the tree view updates as values arrive
+3. Selected device metadata is read for diagnostics (e.g. serial number, CAN value ID)
+4. Streaming starts and the tree view updates as values arrive
 
 ---
 
@@ -429,6 +459,54 @@ Ensure that:
 * CAN IDs do not conflict with other devices
 * Frequencies stay within device limits
 * Zeroing is performed only under safe conditions
+
+---
+
+## ⚠️ CAN Bus Configuration & Safety
+
+The GSV86CAN Viewer does **not configure CAN communication settings** of devices.
+
+It assumes that all connected devices are already correctly configured and can safely operate together on the same CAN bus.
+
+### Important Requirements
+
+Before connecting multiple devices to the same CAN bus, ensure that:
+
+* All CAN IDs are **globally unique**, especially:
+  * `cmd_id`
+  * `answer_id`
+  * `value_id`
+* No two devices transmit on the same CAN ID
+* The CAN baud rate matches across all devices
+
+⚠️ If multiple devices share the same `value_id`, **bus collisions will occur immediately**, even before the Viewer is started.
+
+### Recommended Setup
+
+It is strongly recommended to:
+
+* Configure devices **individually or in isolation**
+* Use a dedicated configuration tool (e.g. [StartupCAN](https://github.com/me-systeme/StartupCAN))
+* Ensure:
+  * `value_id = answer_id` (recommended practice)
+  * All IDs are unique across the full system
+
+### Role of the Viewer
+
+The Viewer:
+
+* does **not modify CAN settings**
+* does **not resolve ID conflicts**
+* reads measurement data from already configured devices
+* may read selected CAN metadata (such as `value_id`) for diagnostic display only
+
+If CAN conflicts exist, symptoms may include:
+
+* Missing or unstable measurement values
+* Incorrect channel data
+* Devices appearing as faulty or not responding
+
+---
 
 ## License
 
